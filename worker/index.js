@@ -237,6 +237,9 @@ async function downloadCutout(resultUrl) {
   } catch {
     throw new RequestError(502, 'Cloud cutout returned an invalid download URL.');
   }
+  if (url.protocol === 'http:' && url.hostname.endsWith('.aliyuncs.com')) {
+    url.protocol = 'https:';
+  }
   if (url.protocol !== 'https:') {
     throw new RequestError(502, 'Cloud cutout returned an invalid download URL.');
   }
