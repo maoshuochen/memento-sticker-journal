@@ -1,0 +1,17 @@
+{
+  "name": "memento-sticker-journal",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node --check app.js && node --check api/cutout.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@alicloud/imageseg20191230": "^4.0.1",
+    "@alicloud/openapi-client": "^0.4.15",
+    "@alicloud/tea-util": "^1.4.11"
+  }
+}
