@@ -14,14 +14,24 @@
     <meta name="twitter:description" content="Turn everyday photos into personal stickers, then keep the little things." />
     <meta name="twitter:image" content="/og.png" />
     <title>memento — sticker journal</title>
-    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="stylesheet" href="./styles.css?v=11" />
   </head>
   <body>
     <main class="app-shell" aria-label="Memento sticker journal prototype">
       <section id="libraryScreen" class="screen library-screen active" aria-labelledby="libraryTitle">
         <header class="topbar">
-          <p class="wordmark">memento</p>
           <button id="profileButton" class="round-icon small-type" aria-label="How Memento works">?</button>
+          <p class="wordmark">memento</p>
+          <button id="searchToggle" class="round-icon search-toggle" type="button" aria-label="Search stickers" aria-controls="searchPanel" aria-expanded="false">
+            <span aria-hidden="true">⌕</span>
+          </button>
+          <div id="searchPanel" class="search-panel" aria-hidden="true">
+            <label class="search-field">
+              <span aria-hidden="true">⌕</span>
+              <input id="stickerSearch" type="search" placeholder="find a sticker" autocomplete="off" aria-label="Search stickers" />
+              <button id="clearSearch" type="button" aria-label="Clear sticker search">×</button>
+            </label>
+          </div>
         </header>
 
         <div class="library-intro">
@@ -30,12 +40,7 @@
           <button id="sortButton" class="quiet-button" aria-label="Change sticker sorting">recent <span>⌄</span></button>
         </div>
 
-        <section class="library-tools" aria-label="Find stickers">
-          <label class="search-field">
-            <span aria-hidden="true">⌕</span>
-            <input id="stickerSearch" type="search" placeholder="find a sticker" autocomplete="off" aria-label="Search stickers" />
-            <button id="clearSearch" type="button" aria-label="Clear sticker search">×</button>
-          </label>
+        <section class="library-tools" aria-label="Filter stickers">
           <div id="groupFilters" class="group-filters" aria-label="Filter stickers by group"></div>
         </section>
 
@@ -51,11 +56,6 @@
           <div class="shelf-shadow"></div>
         </section>
 
-        <section class="library-note">
-          <span class="note-dot"></span>
-          <p>Turn small moments into pieces<br />you can keep.</p>
-          <button id="previewJournal" class="text-action">open journal <span>→</span></button>
-        </section>
       </section>
 
       <section id="journalScreen" class="screen journal-screen journal-home" aria-labelledby="journalHomeTitle">
@@ -213,6 +213,6 @@
       <input id="cameraUpload" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" aria-label="Camera photo upload" />
       <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     </main>
-    <script src="./app.js?v=10"></script>
+    <script src="./app.js?v=11"></script>
   </body>
 </html>

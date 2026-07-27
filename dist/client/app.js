@@ -325,7 +325,15 @@ function closeOverlay(id) {
   $(`#${id}`).setAttribute('aria-hidden', 'true');
   if (!activeDialog()) restoreFocus();
 }
-function setScreen(id) { $$('.screen').forEach((screen) => screen.classList.remove('active')); $(`#${id}`).classList.add('active'); const journal = id === 'journalScreen'; $('#libraryNav').classList.toggle('is-active', !journal); $('#journalNav').classList.toggle('is-active', journal); $('#canvasAdd').classList.remove('visible'); }
+function setScreen(id) {
+  $$('.screen').forEach((screen) => screen.classList.remove('active'));
+  $(`#${id}`).classList.add('active');
+  const journal = id === 'journalScreen';
+  $('#libraryNav').classList.toggle('is-active', !journal);
+  $('#journalNav').classList.toggle('is-active', journal);
+  $('#canvasAdd').classList.remove('visible');
+  if (id !== 'libraryScreen') setSearchOpen(false);
+}
 
 function addToCanvas(item, saved = null, shouldSelect = true) {
   const canvas = $('#canvasStickers');
@@ -851,9 +859,8 @@ $('#photoUpload').addEventListener('change', (event) => { receiveUpload(event.ta
 $('#cameraUpload').addEventListener('change', (event) => { receiveUpload(event.target.files[0]); event.target.value = ''; });
 $('#libraryNav').addEventListener('click', () => setScreen('libraryScreen'));
 $('#journalNav').addEventListener('click', () => setScreen('journalScreen'));
-$('#previewJournal').addEventListener('click', () => setScreen('journalScreen'));
 $('#backToLibrary').addEventListener('click', () => setScreen('libraryScreen'));
-$('#profileButton').addEventListener('click', () => openSheet('helpSheet'));
+$('#profileButton').addEventListener('click', () => { setSearchOpen(false); openSheet('helpSheet'); });
 $('#closeHelp').addEventListener('click', () => { localStorage.setItem('memento-guide-seen', 'true'); closeSheets(); });
 function openNewJournalSheet() {
   selectedPaper = 'paper-grid';
@@ -877,6 +884,11 @@ $('#nextPage').addEventListener('click', () => { const journal = journals[active
 backdrop.addEventListener('click', closeSheets);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if ($('#searchPanel').classList.contains('is-open')) {
+      setSearchOpen(false);
+      $('#searchToggle').focus();
+      return;
+    }
     const activeSheet = $$('.bottom-sheet.open').at(-1);
     if (activeSheet) {
       closeSheets();
@@ -1002,14 +1014,31 @@ function startDockDrag(event, item, card) {
 $('#stickerSearch').addEventListener('input', (event) => {
   stickerSearchQuery = event.target.value;
   $('#clearSearch').classList.toggle('is-visible', Boolean(stickerSearchQuery));
+  $('#searchToggle').classList.toggle('has-query', Boolean(stickerSearchQuery));
   renderLibrary(false);
 });
 $('#clearSearch').addEventListener('click', () => {
   stickerSearchQuery = '';
   $('#stickerSearch').value = '';
   $('#clearSearch').classList.remove('is-visible');
+  $('#searchToggle').classList.remove('has-query');
   $('#stickerSearch').focus();
   renderLibrary(false);
+});
+function setSearchOpen(isOpen) {
+  const panel = $('#searchPanel');
+  panel.classList.toggle('is-open', isOpen);
+  panel.setAttribute('aria-hidden', String(!isOpen));
+  $('#searchToggle').setAttribute('aria-expanded', String(isOpen));
+  if (isOpen) window.setTimeout(() => $('#stickerSearch').focus(), 0);
+}
+$('#searchToggle').addEventListener('click', () => {
+  setSearchOpen(!$('#searchPanel').classList.contains('is-open'));
+});
+document.addEventListener('pointerdown', (event) => {
+  if ($('#searchPanel').classList.contains('is-open') && !event.target.closest('.library-screen .topbar')) {
+    setSearchOpen(false);
+  }
 });
 
 $('#stickerDetailName').addEventListener('change', (event) => {
