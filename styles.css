@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap');
 
-:root { --ink:#332e2a; --muted:#887f75; --cream:#f3f0e8; --paper:#fbfaf6; --line:#ded9cd; --orange:#c87948; --brown:#403731; --shadow:rgba(64,55,49,.12); --page-surface:var(--cream); --page-pad-top:18px; --page-topbar-height:40px; --page-intro-top:15px; --page-intro-bottom:12px; --page-title-size:clamp(43px,12vw,52px); }
+:root { --ink:#332e2a; --muted:#887f75; --cream:#f3f0e8; --paper:#fbfaf6; --line:#ded9cd; --orange:#c87948; --brown:#403731; --shadow:rgba(64,55,49,.12); --page-surface:var(--cream); --page-pad-x:16px; --page-pad-top:12px; --page-topbar-height:36px; --page-intro-top:8px; --page-intro-bottom:8px; --page-title-size:clamp(38px,10vw,44px); }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { margin:0; min-height:100vh; background:#d9d4ca; color:var(--ink); font-family:"DM Mono", ui-monospace, monospace; }
 button, input { font:inherit; color:inherit; } button { border:0; cursor:pointer; } .app-shell { position:relative; isolation:isolate; width:min(100%, 430px); min-height:100vh; margin:0 auto; overflow:hidden; background:var(--page-surface); box-shadow:0 0 60px rgba(35,28,20,.15); }
@@ -94,7 +94,7 @@ html,body{height:100%;overflow:hidden;}
 
 /* Compact the photo-to-sticker flow on shorter phones while retaining tap targets. */
 @media (max-height:760px){
-  :root{--page-intro-top:7px;--page-intro-bottom:8px;--page-title-size:43px;}
+  :root{--page-intro-top:5px;--page-intro-bottom:6px;--page-title-size:38px;}
   .modal-top{height:64px;padding:10px 18px;}
   .selected-photo{height:clamp(226px,43dvh,330px);margin:0 18px;}
   .subject-info{padding:22px 28px 0;}
@@ -115,7 +115,7 @@ html,body{height:100%;overflow:hidden;}
 }
 
 @media (max-height:680px){
-  :root{--page-pad-top:12px;--page-topbar-height:34px;--page-intro-top:9px;--page-title-size:43px;}
+  :root{--page-pad-top:8px;--page-topbar-height:32px;--page-intro-top:4px;--page-intro-bottom:5px;--page-title-size:34px;}
   .screen{padding-top:12px;}
   .topbar{height:var(--page-topbar-height);}
   .library-screen .library-intro{margin-top:var(--page-intro-top);margin-bottom:var(--page-intro-bottom);}
@@ -229,4 +229,90 @@ button:focus-visible, input:focus-visible { outline:3px solid var(--orange); out
   .journal-detail-screen .page-controls>button:not(.new-page-button){width:36px;height:36px;}
   .journal-detail-screen .new-page-button{min-height:36px;}
   .journal-detail-screen .dock-label button{min-height:36px;margin:-9px -3px -7px;}
+}
+
+/* Compact the interface chrome so stickers, books, photos and paper remain the focus. */
+.screen{padding:var(--page-pad-top) var(--page-pad-x) 100px;}
+.round-icon{width:38px;height:38px;font-size:18px;}
+.wordmark{font-size:18px;}
+.eyebrow{margin-bottom:6px;font-size:9px;}
+.library-intro h1,.journal-home-intro h1,.journal-intro h1{line-height:.88;}
+.quiet-button{min-height:30px;padding:5px 0 5px 11px;font-size:9px;}
+
+.bottom-nav{left:var(--page-pad-x);right:var(--page-pad-x);bottom:max(10px,env(safe-area-inset-bottom));height:64px;padding:5px 10px;border-radius:22px;}
+.nav-item{gap:3px;font-size:8px;}
+.nav-icon{font-size:20px;}
+.library-icon{font-size:17px;}
+.add-button{width:56px;height:50px;margin:0 10px;border-radius:17px;font-size:32px;}
+
+.library-tools{gap:5px;margin:0 3px 7px;}
+.group-filters{gap:6px;}
+.group-pill{min-height:28px;padding:5px 9px;border-radius:12px;font-size:8px;}
+.search-panel{left:46px;right:46px;}
+.search-field{height:34px;border-radius:14px;}
+.search-field input{font-size:10px;}
+.sticker-stage{padding:12px 12px 0;border-radius:24px;}
+.stage-caption{font-size:8px;}
+.library-screen .sticker-shelf{height:calc(100% - 30px);margin-top:12px;}
+
+.journal-home-intro>p:last-child{margin-top:6px;font-size:12px;}
+.prompt-card{margin-bottom:6px;padding:10px 12px;border-radius:17px;}
+.prompt-card .eyebrow{margin-bottom:5px;}
+.prompt-card>p:not(.eyebrow){max-width:300px;margin-bottom:1px;font-size:15px;line-height:1.12;}
+.prompt-shuffle{width:28px;height:28px;margin-top:-3px;font-size:16px;}
+.prompt-card .text-action{padding-top:5px;font-size:8px;}
+.prompt-card .text-action span{font-size:13px;}
+.journal-books{margin:0 calc(var(--page-pad-x) * -1);padding:10px 28px 14px;}
+.create-book-card{min-height:104px;padding:15px 17px;border-radius:17px;}
+.create-book-card span{width:36px;height:36px;font-size:23px;}
+.create-book-card strong{font-size:16px;}
+.create-book-card small{font-size:9px;}
+
+.journal-detail-screen,.journal-detail-screen.open{padding-right:var(--page-pad-x);padding-left:var(--page-pad-x);}
+.journal-subtitle{margin-top:5px;font-size:12px;}
+.journal-detail-screen .journal-canvas{padding:20px;}
+.journal-detail-screen .page-controls{gap:2px;padding:6px 1px 0;}
+.page-controls>button:not(.new-page-button),.journal-detail-screen .page-controls>button:not(.new-page-button){width:32px;height:32px;font-size:15px;}
+.page-dot,.page-dot.is-current{width:24px;height:32px;}
+.new-page-button{min-height:32px;padding:7px 9px;border-radius:12px;font-size:8px;}
+.journal-detail-screen .canvas-sticker-dock{margin-top:6px;padding:7px 8px 5px;border-radius:18px;}
+.dock-label{padding:0 3px 2px;font-size:8px;}
+.dock-label small,.dock-label button{font-size:8px;}
+.dock-label button{min-height:24px;margin:-5px -2px -3px;padding:4px 7px;}
+.canvas-sticker-scroll{gap:8px;padding:2px 2px;}
+.journal-detail-screen .dock-sticker{flex-basis:58px;height:50px;border-radius:12px;}
+.journal-detail-screen .dock-sticker .sticker{width:44px;height:49px;}
+
+.modal-top{height:64px;padding:10px 18px;}
+.modal-top p{font-size:15px;}
+.bottom-sheet{padding:12px 20px 24px;}
+.sheet-handle{margin-bottom:15px;}
+.bottom-sheet h2{margin-bottom:16px;font-size:27px;}
+.option-row{grid-template-columns:40px 1fr auto;gap:11px;padding:12px 0;}
+.option-icon{width:34px;height:34px;font-size:16px;}
+.option-row strong{font-size:14px;}
+.option-row small{font-size:9px;}
+.primary-wide{height:50px;font-size:15px;}
+.subject-info{padding:25px 26px 0;}
+.subject-info h2{font-size:30px;}
+.subject-info p:last-child{font-size:10px;}
+
+@media (max-height:760px){
+  .screen{padding-bottom:94px;}
+  .library-tools{margin-bottom:6px;}
+  .group-pill{min-height:27px;padding:4px 8px;}
+  .prompt-card{padding:9px 11px;}
+  .prompt-card>p:not(.eyebrow){font-size:14px;}
+  .modal-top{height:56px;padding:7px 18px;}
+  .subject-info{padding-top:17px;}
+  .subject-info h2{font-size:27px;}
+}
+
+@media (max-height:680px){
+  .screen{padding-top:var(--page-pad-top);padding-bottom:88px;}
+  .round-icon{width:36px;height:36px;}
+  .wordmark{font-size:17px;}
+  .journal-detail-screen .page-controls>button:not(.new-page-button){width:30px;height:30px;}
+  .journal-detail-screen .new-page-button{min-height:30px;}
+  .journal-detail-screen .dock-label button{min-height:26px;margin:-6px -2px -4px;}
 }
