@@ -3,6 +3,7 @@
 把照片里的小物件做成贴纸，收进一本可以自由拼贴的数字手帐。
 
 线上版本：[memento-sticker-journal.vercel.app](https://memento-sticker-journal.vercel.app)
+源码仓库：[maoshuochen/memento-sticker-journal](https://github.com/maoshuochen/memento-sticker-journal)
 
 ## 功能
 
@@ -64,6 +65,22 @@ ALIBABA_CLOUD_ACCESS_KEY_SECRET=your_access_key_secret
 - 选择云端抠图时，图片会发送到阿里云图像分割服务处理；本地快速抠图不会调用该服务。
 
 ## 部署到 Vercel
+
+当前 Vercel 项目已关联 GitHub 仓库，并使用 `main` 作为生产分支：
+
+- 推送到 `main` 会自动构建并更新生产站点。
+- 推送其他分支或创建 Pull Request 会生成独立的预览部署，适合在合并前检查界面与抠图流程。
+- 生产环境变量在 Vercel 中管理；GitHub 仓库不保存 Access Key。
+
+一般开发流程：
+
+```bash
+git checkout -b feature/my-change
+# 开发、验证并提交
+git push -u origin feature/my-change
+```
+
+确认预览部署后，将变更合并到 `main` 即可自动发布。需要绕过 Git 集成进行紧急部署时，仍可使用：
 
 ```bash
 npx vercel
