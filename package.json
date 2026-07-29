@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node --check app.js && node --check api/cutout.js"
+    "check": "node --check app.js && node --check api/cutout.js",
+    "test:api": "node --test tests/cutout-api.test.cjs",
+    "test:e2e": "npm run build && playwright test",
+    "test": "npm run check && npm run test:api && npm run test:e2e"
   },
   "engines": {
     "node": ">=20"
@@ -12,6 +15,10 @@
   "dependencies": {
     "@alicloud/imageseg20191230": "^4.0.1",
     "@alicloud/openapi-client": "^0.4.15",
-    "@alicloud/tea-util": "^1.4.11"
+    "@alicloud/tea-util": "^1.4.11",
+    "html2canvas": "1.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1"
   }
 }

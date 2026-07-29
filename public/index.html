@@ -14,7 +14,7 @@
     <meta name="twitter:description" content="Turn everyday photos into personal stickers, then keep the little things." />
     <meta name="twitter:image" content="/og.png" />
     <title>memento — sticker journal</title>
-    <link rel="stylesheet" href="./styles.css?v=13" />
+    <link rel="stylesheet" href="./styles.css?v=14" />
   </head>
   <body>
     <main class="app-shell" aria-label="Memento sticker journal prototype">
@@ -116,7 +116,7 @@
           <img id="subjectPhoto" src="https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=85" alt="Selected photo" />
           <div id="subjectSelection" class="subject-selection" aria-hidden="true"><span>drag to frame</span></div>
         </div>
-        <div class="subject-info"><p class="eyebrow" id="subjectStatus">Ready to cut out</p><h2 id="selectedSubjectName">Your subject</h2><p id="subjectDescription">We'll remove the background on this device and keep the main subject.</p></div>
+        <div class="subject-info"><p class="eyebrow" id="subjectStatus">Ready to cut out</p><h2 id="selectedSubjectName">Your subject</h2><p id="subjectDescription">We'll remove the background and keep the main subject.</p><div class="subject-recovery"><button id="adjustSubjectFrame" class="text-action subject-adjust" type="button">adjust the frame <span>↗</span></button><button id="retryCloudCutout" class="text-action subject-adjust" type="button" hidden>retry cloud cutout <span>↻</span></button></div></div>
         <div class="subject-bottom"><button id="makeStickerButton" class="primary-wide">Cut out subject <span>→</span></button></div>
       </section>
 
@@ -126,6 +126,14 @@
         <div class="save-fields"><label>Name<input id="stickerNameInput" value="Strawberry soda" /></label><label>Group<button id="groupPicker" class="select-field">summer 2026 <span>⌄</span></button></label></div>
         <div class="border-choices"><p class="eyebrow">Refine the edge</p><div class="border-row"><button class="border-choice is-chosen" data-finish="edge-soft"><span class="mini-sticker soft-mini"></span><em>soft white</em></button><button class="border-choice" data-finish="edge-bold"><span class="mini-sticker bold-mini"></span><em>bold white</em></button><button class="border-choice" data-finish="edge-lift"><span class="mini-sticker lift-mini"></span><em>paper lift</em></button></div></div>
         <div class="edge-slider"><div><p class="eyebrow">Outline thickness</p><output id="edgeThicknessValue" for="edgeThickness">3 px</output></div><input id="edgeThickness" type="range" min="1" max="10" value="3" aria-label="Outline thickness" /></div>
+      </section>
+
+      <section id="cutoutPrivacySheet" class="bottom-sheet privacy-sheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="cutoutPrivacyTitle">
+        <div class="sheet-handle"></div>
+        <p class="eyebrow">Before cloud cutout</p>
+        <h2 id="cutoutPrivacyTitle">Your photo leaves this device</h2>
+        <p class="sheet-copy">The framed part of this photo will be sent to Alibaba Cloud to make the cutout. Processing follows Alibaba Cloud's terms. Choose quick cutout to keep this step in your browser.</p>
+        <div class="privacy-actions"><button id="useQuickCutout" class="quiet-wide" type="button">use quick cutout</button><button id="confirmCloudCutout" class="primary-wide" type="button">Continue with cloud <span>→</span></button></div>
       </section>
 
       <section id="journalDetailScreen" class="overlay-screen journal-detail-screen" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="journalTitle">
@@ -205,14 +213,17 @@
       </section>
       <section id="helpSheet" class="bottom-sheet help-sheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="helpTitle">
         <div class="sheet-handle"></div><p class="eyebrow">A small guide</p><h2 id="helpTitle">Keep the little things</h2>
-        <ol><li><b>1</b><span><strong>Catch a moment</strong><small>Take a photo or pick one from your library.</small></span></li><li><b>2</b><span><strong>Cut out the subject</strong><small>We try the clearest cutout first, with a quick fallback when needed.</small></span></li><li><b>3</b><span><strong>Make a page</strong><small>Move, rotate and resize stickers; your work stays on this device.</small></span></li></ol>
+        <ol><li><b>1</b><span><strong>Catch a moment</strong><small>Take a photo or pick one from your library.</small></span></li><li><b>2</b><span><strong>Cut out the subject</strong><small>Cloud cutout sends the framed image to Alibaba Cloud; quick cutout stays in this browser.</small></span></li><li><b>3</b><span><strong>Make a page</strong><small>Move, rotate and resize stickers; your work stays on this device.</small></span></li></ol>
+        <div class="backup-actions"><button id="exportBackup" class="quiet-wide" type="button">export backup</button><button id="restoreBackup" class="quiet-wide" type="button">restore backup</button></div>
         <button id="closeHelp" class="primary-wide">Let's make something <span>→</span></button>
       </section>
       <button id="canvasAdd" class="canvas-add" aria-label="Add a sticker to journal">+</button>
       <input id="photoUpload" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo file upload" />
       <input id="cameraUpload" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" aria-label="Camera photo upload" />
+      <input id="backupUpload" class="visually-hidden" type="file" accept="application/json,.json" aria-label="Memento backup file" />
       <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     </main>
-    <script src="./app.js?v=11"></script>
+    <script src="./vendor/html2canvas.min.js?v=1"></script>
+    <script src="./app.js?v=12"></script>
   </body>
 </html>

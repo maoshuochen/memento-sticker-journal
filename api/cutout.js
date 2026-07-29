@@ -1,4 +1,5 @@
 const { Readable } = require('node:stream');
+const { createHash } = require('node:crypto');
 const ImagesegClient = require('@alicloud/imageseg20191230');
 const OpenapiClient = require('@alicloud/openapi-client');
 const TeaUtil = require('@alicloud/tea-util');
@@ -25,22 +26,60 @@ function getClientIp(request) {
   return request.socket?.remoteAddress || 'unknown';
 }
 
-function checkRateLimit(request) {
+function rateLimitKey(request) {
+  const salt = process.env.RATE_LIMIT_SALT || process.env.VERCEL_PROJECT_ID || 'memento-cutout';
+  const digest = createHash('sha256').update(`${salt}:${getClientIp(request)}`).digest('hex').slice(0, 32);
+  return `memento:cutout:${digest}`;
+}
+
+function checkMemoryRateLimit(request) {
   const now = Date.now();
   if (requestWindows.size > 1_000) {
     for (const [key, value] of requestWindows) {
       if (now >= value.resetAt) requestWindows.delete(key);
     }
   }
-  const ip = getClientIp(request);
-  const entry = requestWindows.get(ip);
+  const key = rateLimitKey(request);
+  const entry = requestWindows.get(key);
   if (!entry || now >= entry.resetAt) {
-    requestWindows.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    requestWindows.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return 0;
   }
   entry.count += 1;
   if (entry.count <= RATE_LIMIT_MAX_REQUESTS) return 0;
   return Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+}
+
+async function checkPersistentRateLimit(request) {
+  const endpoint = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!endpoint || !token) return null;
+  const key = rateLimitKey(request);
+  try {
+    const increment = await fetch(`${endpoint.replace(/\/$/, '')}/incr/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!increment.ok) throw new Error(`Redis rate limit returned ${increment.status}`);
+    const count = Number((await increment.json()).result);
+    if (count === 1) {
+      await fetch(`${endpoint.replace(/\/$/, '')}/expire/${encodeURIComponent(key)}/60`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+    return count > RATE_LIMIT_MAX_REQUESTS ? RATE_LIMIT_WINDOW_MS / 1000 : 0;
+  } catch (error) {
+    console.warn(JSON.stringify({ event: 'cutout_rate_limit_fallback', reason: error.message }));
+    return null;
+  }
+}
+
+async function checkRateLimit(request) {
+  const persistentRetryAfter = await checkPersistentRateLimit(request);
+  return persistentRetryAfter ?? checkMemoryRateLimit(request);
+}
+
+function logCutout(event, fields = {}) {
+  console.info(JSON.stringify({ event, at: new Date().toISOString(), ...fields }));
 }
 
 function createClient() {
@@ -124,11 +163,14 @@ async function downloadCutout(resultUrl) {
   }
 }
 
-module.exports = async (request, response) => {
+async function handler(request, response) {
+  const startedAt = Date.now();
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed.' });
-  const retryAfter = checkRateLimit(request);
+  const retryAfter = await checkRateLimit(request);
   if (retryAfter) {
     response.setHeader('Retry-After', String(retryAfter));
+    response.setHeader('X-RateLimit-Limit', String(RATE_LIMIT_MAX_REQUESTS));
+    logCutout('cutout_rate_limited', { retryAfter });
     return response.status(429).json({ error: 'Too many cutout requests. Please try again shortly.' });
   }
   const contentLength = Number(request.headers['content-length']);
@@ -151,11 +193,26 @@ module.exports = async (request, response) => {
     const png = await downloadCutout(resultUrl);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Content-Type', 'image/png');
+    logCutout('cutout_succeeded', { durationMs: Date.now() - startedAt, outputBytes: png.length });
     return response.status(200).send(png);
   } catch (error) {
-    console.error('Aliyun cutout failed', error);
     const status = error instanceof RequestError ? error.status : 502;
     const message = error instanceof RequestError ? error.message : 'Cloud cutout failed.';
+    console.error(JSON.stringify({ event: 'cutout_failed', durationMs: Date.now() - startedAt, status, message }));
     return response.status(status).json({ error: message });
   }
+}
+
+module.exports = handler;
+module.exports.__private = {
+  MAX_IMAGE_BYTES,
+  MAX_REQUEST_BYTES,
+  RATE_LIMIT_MAX_REQUESTS,
+  RequestError,
+  checkMemoryRateLimit,
+  checkRateLimit,
+  hasExpectedSignature,
+  rateLimitKey,
+  readImage,
+  requestWindows
 };

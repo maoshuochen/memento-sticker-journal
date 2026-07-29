@@ -53,6 +53,8 @@ let selectedGroup = stickerGroups[0];
 const STORAGE_KEY = 'memento-journal-v2';
 const STORAGE_DB_NAME = 'memento-journal';
 const STORAGE_STORE_NAME = 'app-state';
+const BACKUP_VERSION = 1;
+const CLOUD_CUTOUT_NOTICE_KEY = 'memento-cloud-cutout-notice-seen';
 let storageDbPromise = null;
 let saveQueue = Promise.resolve();
 let storageWarningShown = false;
@@ -115,14 +117,14 @@ async function writeStoredState(state) {
 
 function applyStoredState(saved) {
   if (!saved) return;
-  if (Array.isArray(saved.photos) && saved.photos.length) {
+  if (Array.isArray(saved.photos)) {
     photos = saved.photos.map((photo, index) => ({
       ...photo,
       group: photo.group || 'everyday',
       createdAt: photo.createdAt || Date.now() - index
     }));
   }
-  if (Array.isArray(saved.journals) && saved.journals.length) {
+  if (Array.isArray(saved.journals)) {
     journals.splice(0, journals.length, ...saved.journals.map((journal) => ({
       ...journal,
       pageContents: journal.pageContents || {},
@@ -130,6 +132,16 @@ function applyStoredState(saved) {
       history: journal.history || {}
     })));
   }
+}
+
+function snapshotAppState() {
+  return JSON.parse(JSON.stringify({ photos, journals }));
+}
+
+function isValidBackupState(state) {
+  if (!state || typeof state !== 'object' || !Array.isArray(state.photos) || !Array.isArray(state.journals)) return false;
+  return state.photos.every((photo) => photo && typeof photo === 'object' && typeof photo.id === 'string' && typeof photo.name === 'string' && typeof photo.image === 'string')
+    && state.journals.every((journal) => journal && typeof journal === 'object' && typeof journal.id === 'string' && typeof journal.title === 'string');
 }
 
 function reportStorageProblem(error) {
@@ -141,7 +153,7 @@ function reportStorageProblem(error) {
 }
 
 function saveApp() {
-  const snapshot = JSON.parse(JSON.stringify({ photos, journals }));
+  const snapshot = snapshotAppState();
   setSaveStatus('saving…');
   saveQueue = saveQueue
     .catch(() => undefined)
@@ -166,6 +178,47 @@ async function loadApp() {
     localStorage.removeItem(STORAGE_KEY);
   } catch (error) {
     reportStorageProblem(error);
+  }
+}
+
+function exportBackup() {
+  const backup = {
+    format: 'memento-backup',
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    state: snapshotAppState()
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `memento-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  showToast('Backup downloaded. Keep this file somewhere safe.');
+}
+
+async function restoreBackup(file) {
+  if (!file) return;
+  try {
+    if (file.size > 25 * 1024 * 1024) throw new Error('That backup is too large to restore here.');
+    const backup = JSON.parse(await file.text());
+    if (backup?.format !== 'memento-backup' || backup.version !== BACKUP_VERSION || !isValidBackupState(backup.state)) {
+      throw new Error('That file is not a valid Memento backup.');
+    }
+    if (!window.confirm('Restore this backup? It will replace the stickers and journals currently on this device.')) return;
+    applyStoredState(backup.state);
+    activeJournal = 0;
+    await saveApp();
+    renderLibrary(false);
+    renderJournalBooks();
+    renderTray();
+    renderCanvasDock();
+    closeSheets();
+    setScreen('libraryScreen');
+    showToast('Backup restored on this device.');
+  } catch (error) {
+    showToast(error.message || 'This backup could not be restored.');
   }
 }
 const journals = [
@@ -702,6 +755,7 @@ function prepareSubjectPhoto(source) {
   $('#subjectStatus').textContent = 'Frame your subject first';
   $('#selectedSubjectName').textContent = 'What should stay?';
   $('#subjectDescription').textContent = 'Drag a frame around the thing you want to keep. AI will use this frame to make a cleaner sticker.';
+  $('#retryCloudCutout').hidden = true;
   $('#makeStickerButton').classList.remove('is-processing');
   $('#makeStickerButton').dataset.mode = '';
   $('#makeStickerButton').innerHTML = 'Cut out subject <span>→</span>';
@@ -768,18 +822,35 @@ async function capturePhoto() {
 
 async function receiveUpload(file) {
   if (!file) return;
-  if (file.size > 12 * 1024 * 1024) { alert('Please choose a photo smaller than 12 MB.'); return; }
-  try { prepareSubjectPhoto(await normalizePhoto(file)); } catch (error) { alert('That photo could not be opened.'); }
+  if (file.size > 12 * 1024 * 1024) { showToast('Please choose a photo smaller than 12 MB.'); return; }
+  try { prepareSubjectPhoto(await normalizePhoto(file)); } catch (error) { showToast('That photo could not be opened.'); }
+}
+
+async function prepareCutoutInput() {
+  workingCutoutInput = await cropSubjectSelection();
+  return workingCutoutInput;
+}
+
+function requestCutout() {
+  if (!workingImageSource) return;
+  if ($('#makeStickerButton').dataset.mode === 'quick') {
+    prepareCutoutInput().then(quickCutout).catch(() => showToast('Please adjust the frame, then try again.'));
+    return;
+  }
+  if (!localStorage.getItem(CLOUD_CUTOUT_NOTICE_KEY)) {
+    openSheet('cutoutPrivacySheet');
+    return;
+  }
+  cutOutSubject();
 }
 
 async function cutOutSubject() {
   if (!workingImageSource) return;
-  if ($('#makeStickerButton').dataset.mode === 'quick') { quickCutout(); return; }
   const button = $('#makeStickerButton');
   button.classList.add('is-processing'); button.innerHTML = 'Cutting out… <span>◌</span>';
   $('#subjectStatus').textContent = 'Finding your subject';
   try {
-    workingCutoutInput = await cropSubjectSelection();
+    await prepareCutoutInput();
     const result = await fetch('/api/cutout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -792,12 +863,14 @@ async function cutOutSubject() {
     workingCutoutSource = await normalizeCutout(await result.blob());
     $('#liveStickerPreview img').src = workingCutoutSource;
     $('#subjectStatus').textContent = 'Subject cut out';
+    $('#retryCloudCutout').hidden = true;
     button.classList.remove('is-processing');
     openOverlay('saveScreen');
   } catch (error) {
     button.classList.remove('is-processing'); button.dataset.mode = 'quick'; button.innerHTML = 'Use quick cutout <span>→</span>';
     $('#subjectStatus').textContent = 'Cloud cutout is unavailable';
-    $('#subjectDescription').textContent = error.message === 'Cloud cutout is not configured yet.' ? 'Add the Alibaba Cloud credentials in Vercel to turn on AI cutout.' : 'Use quick cutout for a clean, solid background, then try cloud cutout again.';
+    $('#subjectDescription').textContent = error.message === 'Cloud cutout is not configured yet.' ? 'Cloud cutout is not available right now. Quick cutout stays in this browser.' : 'Use quick cutout for a clean, solid background, adjust your frame, or retry cloud cutout.';
+    $('#retryCloudCutout').hidden = false;
   }
 }
 
@@ -825,7 +898,7 @@ async function quickCutout() {
     context.putImageData(pixels, 0, 0);
     const result = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not make cutout')), 'image/png'));
     workingCutoutSource = await normalizeCutout(result); $('#liveStickerPreview img').src = workingCutoutSource;
-    button.classList.remove('is-processing'); button.dataset.mode = ''; openOverlay('saveScreen');
+    button.classList.remove('is-processing'); button.dataset.mode = ''; $('#retryCloudCutout').hidden = false; openOverlay('saveScreen');
   } catch (error) {
     button.classList.remove('is-processing'); button.innerHTML = 'Try quick cutout again <span>→</span>';
     $('#subjectStatus').textContent = 'Quick cutout could not read this photo';
@@ -837,14 +910,14 @@ async function exportCurrentPage() {
   const original = button.textContent;
   button.textContent = '…'; button.disabled = true;
   try {
-    const module = await import('https://esm.sh/html2canvas@1.4.1');
-    const image = await module.default($('#journalCanvas'), { backgroundColor: '#faf7ed', scale: 2, useCORS: true });
+    if (typeof window.html2canvas !== 'function') throw new Error('Export is still loading.');
+    const image = await window.html2canvas($('#journalCanvas'), { backgroundColor: '#faf7ed', scale: 2, useCORS: true });
     const link = document.createElement('a');
     link.href = image.toDataURL('image/png');
     link.download = `${currentJournal().title.toLowerCase().replace(/\s+/g, '-')}-page-${currentJournal().page}.png`;
     link.click();
   } catch (error) {
-    alert('This page could not be exported yet. Please try again once the page images have loaded.');
+    showToast('Export could not finish yet. Please try again once images have loaded.');
   } finally { button.textContent = original; button.disabled = false; }
 }
 
@@ -853,8 +926,31 @@ $('#cameraOption').addEventListener('click', startCamera);
 $('#uploadOption').addEventListener('click', () => $('#photoUpload').click());
 $('#takePhoto').addEventListener('click', capturePhoto);
 $('#continueFromCapture').addEventListener('click', () => $('#photoUpload').click());
-$('#subjectNext').addEventListener('click', cutOutSubject);
-$('#makeStickerButton').addEventListener('click', cutOutSubject);
+$('#subjectNext').addEventListener('click', requestCutout);
+$('#makeStickerButton').addEventListener('click', requestCutout);
+$('#confirmCloudCutout').addEventListener('click', () => {
+  localStorage.setItem(CLOUD_CUTOUT_NOTICE_KEY, 'true');
+  closeSheets(false);
+  cutOutSubject();
+});
+$('#useQuickCutout').addEventListener('click', async () => {
+  closeSheets(false);
+  try {
+    await prepareCutoutInput();
+    await quickCutout();
+  } catch (error) {
+    showToast('Please adjust the frame, then try quick cutout again.');
+  }
+});
+$('#adjustSubjectFrame').addEventListener('click', () => {
+  $('#subjectStatus').textContent = 'Adjust the frame';
+  $('#subjectDescription').textContent = 'Drag the dashed frame tightly around what you want to keep, then cut it out again.';
+});
+$('#retryCloudCutout').addEventListener('click', () => {
+  $('#makeStickerButton').dataset.mode = '';
+  $('#makeStickerButton').innerHTML = 'Try cloud cutout again <span>→</span>';
+  requestCutout();
+});
 $('#photoUpload').addEventListener('change', (event) => { receiveUpload(event.target.files[0]); event.target.value = ''; });
 $('#cameraUpload').addEventListener('change', (event) => { receiveUpload(event.target.files[0]); event.target.value = ''; });
 $('#libraryNav').addEventListener('click', () => setScreen('libraryScreen'));
@@ -862,6 +958,9 @@ $('#journalNav').addEventListener('click', () => setScreen('journalScreen'));
 $('#backToLibrary').addEventListener('click', () => setScreen('libraryScreen'));
 $('#profileButton').addEventListener('click', () => { setSearchOpen(false); openSheet('helpSheet'); });
 $('#closeHelp').addEventListener('click', () => { localStorage.setItem('memento-guide-seen', 'true'); closeSheets(); });
+$('#exportBackup').addEventListener('click', exportBackup);
+$('#restoreBackup').addEventListener('click', () => $('#backupUpload').click());
+$('#backupUpload').addEventListener('change', (event) => { restoreBackup(event.target.files[0]); event.target.value = ''; });
 function openNewJournalSheet() {
   selectedPaper = 'paper-grid';
   selectedCover = 'cover-blue';

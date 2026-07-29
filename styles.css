@@ -231,6 +231,39 @@ button:focus-visible, input:focus-visible { outline:3px solid var(--orange); out
   .journal-detail-screen .dock-label button{min-height:36px;margin:-9px -3px -7px;}
 }
 
+/* Keep the calm compact visual language, but give frequent actions a reliable thumb target. */
+.round-icon{width:40px;height:40px;}
+.group-pill{min-height:34px;padding:7px 10px;}
+.prompt-shuffle{width:36px;height:36px;}
+.text-action{min-height:36px;}
+.page-controls>button:not(.new-page-button),.journal-detail-screen .page-controls>button:not(.new-page-button){width:38px;height:38px;}
+.page-dot,.page-dot.is-current{width:26px;height:38px;}
+.new-page-button{min-height:38px;}
+.dock-label button{min-height:36px;}
+
+.subject-recovery{display:flex;gap:8px;align-items:center;margin-top:8px;}
+.subject-adjust{min-height:34px;color:var(--orange);}
+.privacy-actions,.backup-actions{display:grid;gap:10px;grid-template-columns:1fr 1.25fr;align-items:stretch;}
+.privacy-actions .quiet-wide,.backup-actions .quiet-wide{height:50px;}
+.backup-actions{grid-template-columns:1fr 1fr;margin:0 0 12px;}
+.help-sheet .primary-wide{margin-top:0;}
+
+@media (max-height:760px){
+  .group-pill{min-height:32px;padding:6px 9px;}
+  .prompt-shuffle{width:34px;height:34px;}
+  .page-controls>button:not(.new-page-button),.journal-detail-screen .page-controls>button:not(.new-page-button){width:36px;height:36px;}
+  .page-dot,.page-dot.is-current{height:36px;}
+  .new-page-button{min-height:36px;}
+}
+
+@media (max-height:680px){
+  .round-icon{width:38px;height:38px;}
+  .group-pill{min-height:30px;}
+  .page-controls>button:not(.new-page-button),.journal-detail-screen .page-controls>button:not(.new-page-button){width:34px;height:34px;}
+  .page-dot,.page-dot.is-current{height:34px;}
+  .new-page-button{min-height:34px;}
+}
+
 /* Compact the interface chrome so stickers, books, photos and paper remain the focus. */
 .screen{padding:var(--page-pad-top) var(--page-pad-x) 100px;}
 .round-icon{width:38px;height:38px;font-size:18px;}
