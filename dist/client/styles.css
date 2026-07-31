@@ -206,6 +206,14 @@ button:focus-visible, input:focus-visible { outline:3px solid var(--orange); out
 
 .toast{position:absolute;z-index:100;left:50%;bottom:max(103px,calc(env(safe-area-inset-bottom) + 92px));max-width:calc(100% - 38px);padding:11px 15px;border-radius:14px;background:rgba(54,47,42,.94);box-shadow:0 8px 24px rgba(44,36,30,.22);color:#fff;font-size:10px;line-height:1.35;text-align:center;opacity:0;pointer-events:none;transform:translate(-50%,12px);transition:opacity .2s,transform .2s;}
 .toast.is-visible{opacity:1;transform:translate(-50%,0);}
+
+/* The finished sticker is the main action here: a small WebGL canvas gives it a tactile edge to grab. */
+.sticker-preview-card{position:relative;}
+.live-sticker.peel-preview{width:min(73vw,228px);height:min(47vw,194px);max-height:210px;box-shadow:none;touch-action:none;}
+.peel-preview canvas{display:block;width:100%!important;height:100%!important;outline:0;}
+.peel-preview.is-static-preview{display:grid;place-items:center;}
+.peel-preview.is-static-preview img{width:76%;height:82%;object-fit:contain;filter:drop-shadow(0 0 var(--edge,3px) #fff) drop-shadow(0 8px 10px rgba(73,61,47,.2));}
+.peel-hint{position:absolute;right:13px;bottom:11px;left:13px;margin:0;color:#665c52;font-size:9px;line-height:1.3;text-align:center;pointer-events:none;}
 .quiet-button{min-height:36px;}
 .sheet-backdrop.visible{z-index:55;}
 .bottom-sheet{position:fixed;left:max(0px,calc((100vw - 430px)/2));right:max(0px,calc((100vw - 430px)/2));bottom:0;visibility:hidden;pointer-events:none;transform:translateY(105%);transition:none;}
@@ -249,6 +257,7 @@ button:focus-visible, input:focus-visible { outline:3px solid var(--orange); out
 .help-sheet .primary-wide{margin-top:0;}
 
 @media (max-height:760px){
+  .live-sticker.peel-preview{width:min(64vw,190px);height:min(42vw,164px);}
   .group-pill{min-height:32px;padding:6px 9px;}
   .prompt-shuffle{width:34px;height:34px;}
   .page-controls>button:not(.new-page-button),.journal-detail-screen .page-controls>button:not(.new-page-button){width:36px;height:36px;}

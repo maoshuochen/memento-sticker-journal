@@ -122,7 +122,10 @@
 
       <section id="saveScreen" class="overlay-screen save-screen" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="saveTitle">
         <header class="modal-top"><button class="back-button" data-close="saveScreen" aria-label="Back to subject selection">←</button><p id="saveTitle">Finish your sticker</p><button id="saveStickerButton" class="header-action">save</button></header>
-        <div class="sticker-preview-card"><div id="liveStickerPreview" class="sticker cutout live-sticker large-sticker edge-soft"><img src="./assets/iced-cup-cutout.png" alt="Iced cup sticker" /></div></div>
+        <div class="sticker-preview-card">
+          <div id="liveStickerPreview" class="live-sticker peel-preview edge-soft" aria-label="Interactive sticker preview"></div>
+          <p id="peelHint" class="peel-hint" aria-live="polite">Grab the sticker edge and peel it up.</p>
+        </div>
         <div class="save-fields"><label>Name<input id="stickerNameInput" value="Strawberry soda" /></label><label>Group<button id="groupPicker" class="select-field">summer 2026 <span>⌄</span></button></label></div>
         <div class="border-choices"><p class="eyebrow">Refine the edge</p><div class="border-row"><button class="border-choice is-chosen" data-finish="edge-soft"><span class="mini-sticker soft-mini"></span><em>soft white</em></button><button class="border-choice" data-finish="edge-bold"><span class="mini-sticker bold-mini"></span><em>bold white</em></button><button class="border-choice" data-finish="edge-lift"><span class="mini-sticker lift-mini"></span><em>paper lift</em></button></div></div>
         <div class="edge-slider"><div><p class="eyebrow">Outline thickness</p><output id="edgeThicknessValue" for="edgeThickness">3 px</output></div><input id="edgeThickness" type="range" min="1" max="10" value="3" aria-label="Outline thickness" /></div>
@@ -224,6 +227,7 @@
       <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     </main>
     <script src="./vendor/html2canvas.min.js?v=1"></script>
-    <script src="./app.js?v=12"></script>
+    <script src="./vendor/sticker-forge.iife.js?v=1"></script>
+    <script src="./app.js?v=13"></script>
   </body>
 </html>

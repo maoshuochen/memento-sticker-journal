@@ -33,6 +33,17 @@ test('cloud cutout explains photo processing before making a network request', a
   await expect(page.getByText('The framed part of this photo will be sent to Alibaba Cloud')).toBeVisible();
 });
 
+test('a finished cutout gets an interactive peel preview before saving', async ({ page }) => {
+  await page.goto('index.html');
+  await page.locator('#photoUpload').setInputFiles('assets/iced-cup-cutout.png');
+  await page.getByRole('button', { name: 'Cut out subject' }).click();
+  await page.getByRole('button', { name: 'use quick cutout' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Finish your sticker' })).toBeVisible();
+  await expect(page.locator('#liveStickerPreview canvas')).toHaveCount(1);
+  await expect(page.locator('#peelHint')).toContainText('Grab the sticker edge');
+});
+
 test('a validated backup restores only after a replacement confirmation', async ({ page }) => {
   await page.goto('index.html');
   page.once('dialog', (dialog) => dialog.accept());

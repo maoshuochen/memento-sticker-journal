@@ -46,6 +46,8 @@ let highestLayer = 6;
 let workingImageSource = null;
 let workingCutoutInput = null;
 let workingCutoutSource = null;
+let peelPreview = null;
+let peelPreviewRequest = 0;
 let cameraStream = null;
 let subjectSelection = { left: .16, top: .14, width: .68, height: .64 };
 const stickerGroups = ['summer 2026', 'everyday', 'food + drink', 'little finds'];
@@ -374,6 +376,7 @@ function openOverlay(id) {
 }
 function closeOverlay(id) {
   if (id === 'captureScreen') stopCamera();
+  if (id === 'saveScreen') destroyPeelPreview();
   $(`#${id}`).classList.remove('open');
   $(`#${id}`).setAttribute('aria-hidden', 'true');
   if (!activeDialog()) restoreFocus();
@@ -708,6 +711,89 @@ function normalizeCutout(blob) {
   });
 }
 
+function peelPreviewOptions(source) {
+  const finish = {
+    'edge-soft': { width: selectedEdgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 },
+    'edge-bold': { width: selectedEdgeThickness + 13, edge: 3.2, shadow: 16, distance: 11 },
+    'edge-lift': { width: selectedEdgeThickness + 10, edge: 2.6, shadow: 23, distance: 16 }
+  }[selectedFinish] || { width: selectedEdgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 };
+  return {
+    source: { type: 'image', src: source, padding: 96, textureMaxEdge: 1024 },
+    outline: { width: finish.width, color: '#fffdf7' },
+    edge: { width: finish.edge, strength: .72 },
+    shadow: { color: '#403731', opacity: .22, blur: finish.shadow, distance: finish.distance, angle: 42 },
+    peel: { radius: .13, stiffness: .72, grabWidth: 26, maxAngle: 3.2, release: 'reset', residue: selectedFinish === 'edge-lift', surfaceShadow: true },
+    back: { color: '#f2eadf', gloss: .46, roughness: .45 },
+    material: { type: 'original', intensity: .28, scale: 1 },
+    sound: { enabled: false, volume: 0 },
+    tilt: -3,
+    wind: .08,
+    quality: 'medium'
+  };
+}
+
+function refreshPeelPreviewStyle() {
+  const preview = $('#liveStickerPreview');
+  preview.className = `live-sticker peel-preview ${selectedFinish}`;
+  preview.style.setProperty('--edge', `${selectedEdgeThickness}px`);
+  if (peelPreview) peelPreview.setOptions(peelPreviewOptions(workingCutoutSource));
+}
+
+function destroyPeelPreview() {
+  peelPreviewRequest += 1;
+  try { peelPreview?.destroy?.(); } catch (error) { console.warn('Could not release sticker preview.', error); }
+  peelPreview = null;
+  const preview = $('#liveStickerPreview');
+  if (!preview) return;
+  preview.replaceChildren();
+  refreshPeelPreviewStyle();
+}
+
+function showStaticStickerPreview(source) {
+  const preview = $('#liveStickerPreview');
+  preview.replaceChildren();
+  refreshPeelPreviewStyle();
+  preview.classList.add('is-static-preview');
+  const image = document.createElement('img');
+  image.src = source || cutoutAssets[0];
+  image.alt = 'Sticker preview';
+  preview.append(image);
+  $('#peelHint').textContent = 'Preview ready. This device does not support the peel effect.';
+}
+
+async function mountPeelPreview(source) {
+  const request = ++peelPreviewRequest;
+  const preview = $('#liveStickerPreview');
+  try { peelPreview?.destroy?.(); } catch (error) { console.warn('Could not refresh sticker preview.', error); }
+  peelPreview = null;
+  preview.replaceChildren();
+  refreshPeelPreviewStyle();
+  $('#peelHint').textContent = 'Grab the sticker edge and peel it up.';
+  if (!source || typeof window.StickerForge?.createSticker !== 'function') {
+    showStaticStickerPreview(source);
+    return;
+  }
+  try {
+    const instance = await window.StickerForge.createSticker(preview, peelPreviewOptions(source));
+    if (request !== peelPreviewRequest || !$('#saveScreen').classList.contains('open')) {
+      instance.destroy();
+      return;
+    }
+    peelPreview = instance;
+    preview.addEventListener('peelstart', () => { $('#peelHint').textContent = 'Keep pulling from the edge.'; }, { once: true });
+    preview.addEventListener('peelend', () => { $('#peelHint').textContent = 'Nice. It settles back onto the card.'; }, { once: true });
+  } catch (error) {
+    if (request !== peelPreviewRequest) return;
+    console.warn('Interactive sticker preview is unavailable.', error);
+    showStaticStickerPreview(source);
+  }
+}
+
+function openSavePreview() {
+  openOverlay('saveScreen');
+  mountPeelPreview(workingCutoutSource);
+}
+
 function renderSubjectSelection() {
   const selection = $('#subjectSelection');
   selection.style.left = `${subjectSelection.left * 100}%`;
@@ -738,6 +824,7 @@ async function cropSubjectSelection() {
 }
 
 function prepareSubjectPhoto(source) {
+  destroyPeelPreview();
   workingImageSource = source;
   workingCutoutInput = null;
   workingCutoutSource = null;
@@ -749,8 +836,7 @@ function prepareSubjectPhoto(source) {
   $('#edgeThickness').value = selectedEdgeThickness;
   $('#edgeThickness').style.setProperty('--range-progress', `${((selectedEdgeThickness - 1) / 9) * 100}%`);
   $('#edgeThicknessValue').textContent = `${selectedEdgeThickness} px`;
-  $('#liveStickerPreview').className = `sticker cutout live-sticker large-sticker ${selectedFinish}`;
-  $('#liveStickerPreview').style.setProperty('--edge', `${selectedEdgeThickness}px`);
+  refreshPeelPreviewStyle();
   $('#subjectPhoto').src = source;
   $('#subjectStatus').textContent = 'Frame your subject first';
   $('#selectedSubjectName').textContent = 'What should stay?';
@@ -861,11 +947,10 @@ async function cutOutSubject() {
       throw new Error(detail.error || 'Cloud cutout could not finish.');
     }
     workingCutoutSource = await normalizeCutout(await result.blob());
-    $('#liveStickerPreview img').src = workingCutoutSource;
     $('#subjectStatus').textContent = 'Subject cut out';
     $('#retryCloudCutout').hidden = true;
     button.classList.remove('is-processing');
-    openOverlay('saveScreen');
+    openSavePreview();
   } catch (error) {
     button.classList.remove('is-processing'); button.dataset.mode = 'quick'; button.innerHTML = 'Use quick cutout <span>→</span>';
     $('#subjectStatus').textContent = 'Cloud cutout is unavailable';
@@ -897,8 +982,8 @@ async function quickCutout() {
     }
     context.putImageData(pixels, 0, 0);
     const result = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not make cutout')), 'image/png'));
-    workingCutoutSource = await normalizeCutout(result); $('#liveStickerPreview img').src = workingCutoutSource;
-    button.classList.remove('is-processing'); button.dataset.mode = ''; $('#retryCloudCutout').hidden = false; openOverlay('saveScreen');
+    workingCutoutSource = await normalizeCutout(result);
+    button.classList.remove('is-processing'); button.dataset.mode = ''; $('#retryCloudCutout').hidden = false; openSavePreview();
   } catch (error) {
     button.classList.remove('is-processing'); button.innerHTML = 'Try quick cutout again <span>→</span>';
     $('#subjectStatus').textContent = 'Quick cutout could not read this photo';
@@ -1018,14 +1103,14 @@ $$('.subject-hit').forEach((hit) => hit.addEventListener('click', () => {
 $$('.border-choice').forEach((choice) => choice.addEventListener('click', () => {
   $$('.border-choice').forEach((item) => item.classList.remove('is-chosen'));
   choice.classList.add('is-chosen'); selectedFinish = choice.dataset.finish;
-  $('#liveStickerPreview').className = `sticker cutout live-sticker large-sticker ${selectedFinish}`;
+  refreshPeelPreviewStyle();
 }));
 
 $('#edgeThickness').addEventListener('input', (event) => {
   selectedEdgeThickness = Number(event.target.value);
   $('#edgeThicknessValue').textContent = `${selectedEdgeThickness} px`;
   event.target.style.setProperty('--range-progress', `${((selectedEdgeThickness - 1) / 9) * 100}%`);
-  $('#liveStickerPreview').style.setProperty('--edge', `${selectedEdgeThickness}px`);
+  refreshPeelPreviewStyle();
 });
 
 let isSavingSticker = false;

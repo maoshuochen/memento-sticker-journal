@@ -10,6 +10,7 @@
 - 从相册上传或调用相机拍照，框选主体后生成透明背景贴纸。
 - 接入阿里云图像分割；云端不可用时自动提供本地快速抠图作为降级方案。
 - 首次使用云端抠图前会说明图片处理路径；可重新框选、重试云端抠图或直接选择本地快速抠图。
+- 抠图完成后可在保存前从贴纸边缘轻轻“撕起”预览，确认边缘与阴影的触感；不支持 WebGL 时自动回退为静态预览。
 - 在贴纸库中搜索、分组筛选、排序、重命名、移动分组或删除贴纸。
 - 新建多本手帐，选择封面与纸张，并用提示词帮助开始记录。
 - 在画布上添加、拖动、旋转、缩放和调整贴纸层级；支持撤销、重做、编辑页面文字与新增页面。
@@ -22,6 +23,7 @@
 - Vercel Serverless Function：`api/cutout.js`
 - 阿里云图像分割 SDK：`@alicloud/imageseg20191230`
 - 随构建产物发布的 `html2canvas`，用于可靠地导出页面
+- [Sticker Forge](https://github.com/CatsJuice/sticker-forge)：本地随构建发布的 MIT 许可 WebGL 撕贴纸预览组件（默认静音）
 - Node.js 20+
 
 ## 本地运行
@@ -112,6 +114,7 @@ npx vercel --prod
 ├── tests/              # API 单元测试与浏览器端到端冒烟测试
 ├── worker/index.js     # 静态/Worker 部署入口
 ├── assets/             # 内置贴纸与 Open Graph 图片
+├── vendor/             # 随构建发布的前端依赖与第三方许可证
 ├── scripts/build.mjs   # 构建脚本
 ├── UX_RESEARCH.md      # 竞品调研与多轮可用性测试记录
 └── vercel.json         # 安全响应头配置
@@ -135,3 +138,7 @@ npm test
 `npm test` 会运行 API 输入与限流测试，并通过本机 Chrome 执行“保存后刷新恢复、备份导出、云端抠图隐私提示”的端到端冒烟测试。若 Chrome 不在默认 macOS 路径，可设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`。
 
 产品调研、测试范围与下一轮用户研究建议见 [UX_RESEARCH.md](UX_RESEARCH.md)。
+
+## 第三方许可
+
+保存前的撕贴纸预览使用 [Sticker Forge](https://github.com/CatsJuice/sticker-forge)，版权归 CatsJuice，采用 MIT 许可；完整许可证见 [vendor/STICKER_FORGE_LICENSE.txt](vendor/STICKER_FORGE_LICENSE.txt)。组件仅用于交互预览，Memento 不加载其音效，也不使用原项目的图片或品牌素材。
