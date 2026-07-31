@@ -24,6 +24,16 @@ test('journal canvas saves after refresh and backup can be exported', async ({ p
   await expect(await backup).toBeTruthy();
 });
 
+test('library stickers can replay a gravity drop and remain manageable', async ({ page }) => {
+  await page.goto('index.html');
+  await expect(page.locator('.gravity-sticker')).toHaveCount(9);
+  await page.getByRole('button', { name: 'Let stickers fall again' }).click();
+  await expect(page.locator('#stickerShelf')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#stickerShelf')).not.toHaveAttribute('aria-busy', 'true', { timeout: 5000 });
+  await page.getByRole('button', { name: 'Manage iced cup' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sticker details' })).toBeVisible();
+});
+
 test('cloud cutout explains photo processing before making a network request', async ({ page }) => {
   await page.goto('index.html');
   await page.locator('#photoUpload').setInputFiles('assets/iced-cup-cutout.png');

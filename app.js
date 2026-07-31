@@ -48,6 +48,8 @@ let workingCutoutInput = null;
 let workingCutoutSource = null;
 let peelPreview = null;
 let peelPreviewRequest = 0;
+let gravityFrame = null;
+let gravityBodies = [];
 let cameraStream = null;
 let subjectSelection = { left: .16, top: .14, width: .68, height: .64 };
 const stickerGroups = ['summer 2026', 'everyday', 'food + drink', 'little finds'];
@@ -277,7 +279,129 @@ function renderGroupFilters() {
   });
 }
 
+function stopGravity() {
+  if (gravityFrame) window.cancelAnimationFrame(gravityFrame);
+  gravityFrame = null;
+  gravityBodies = [];
+  $('#stickerShelf')?.removeAttribute('aria-busy');
+}
+
+function stickerSeed(value) {
+  return [...String(value)].reduce((seed, character) => ((seed * 31) + character.charCodeAt(0)) >>> 0, 7);
+}
+
+function placeGravityBody(body) {
+  body.element.style.transform = `translate3d(${Math.round(body.x)}px, ${Math.round(body.y)}px, 0) rotate(${body.angle.toFixed(1)}deg)`;
+}
+
+function settleGravityBodies(bodies, width, height) {
+  const floor = Math.max(0, height - 5);
+  for (let pass = 0; pass < 24; pass += 1) {
+    bodies.forEach((body) => {
+      body.x = Math.max(2, Math.min(width - body.width - 2, body.x));
+      body.y = Math.min(floor - body.height, body.y);
+    });
+    for (let first = 0; first < bodies.length; first += 1) {
+      for (let second = first + 1; second < bodies.length; second += 1) {
+        const a = bodies[first]; const b = bodies[second];
+        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+        if (overlapX <= 0 || overlapY <= 0) continue;
+        if (overlapY <= overlapX) {
+          const shift = overlapY / 2 + .5;
+          if (a.y + a.height / 2 < b.y + b.height / 2) { a.y -= shift; b.y += shift; } else { a.y += shift; b.y -= shift; }
+        } else {
+          const shift = overlapX / 2 + .5;
+          if (a.x + a.width / 2 < b.x + b.width / 2) { a.x -= shift; b.x += shift; } else { a.x += shift; b.x -= shift; }
+        }
+      }
+    }
+  }
+  bodies.forEach((body) => { body.y = Math.max(0, Math.min(floor - body.height, body.y)); placeGravityBody(body); });
+}
+
+function runGravityDrop({ replay = false, immediate = false } = {}) {
+  stopGravity();
+  const shelf = $('#stickerShelf');
+  const stickers = [...shelf.querySelectorAll('.gravity-sticker')];
+  if (!stickers.length) return;
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const bounds = shelf.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  gravityBodies = stickers.map((element, index) => {
+    const seed = stickerSeed(element.dataset.stickerId);
+    const bodyWidth = Number(element.dataset.gravityWidth);
+    const bodyHeight = Number(element.dataset.gravityHeight);
+    const restingX = 5 + ((seed % 1000) / 1000) * Math.max(1, width - bodyWidth - 10);
+    const restingY = -bodyHeight - index * 4;
+    return {
+      element, width: bodyWidth, height: bodyHeight,
+      x: restingX, y: reducedMotion ? Math.max(0, height - bodyHeight - 7 - (index % 3) * 5) : restingY,
+      vx: ((seed % 9) - 4) * 10, vy: reducedMotion ? 0 : 20 + (index % 3) * 35,
+      angle: ((seed % 13) - 6) * 1.4, spin: ((seed % 7) - 3) * .13
+    };
+  });
+  gravityBodies.forEach(placeGravityBody);
+  if (reducedMotion || immediate) {
+    settleGravityBodies(gravityBodies, width, height);
+    return;
+  }
+  shelf.setAttribute('aria-busy', 'true');
+  const startedAt = performance.now();
+  let lastFrame = startedAt;
+  const animate = (now) => {
+    const delta = Math.min(.032, Math.max(.008, (now - lastFrame) / 1000));
+    lastFrame = now;
+    const floor = height - 5;
+    gravityBodies.forEach((body) => {
+      body.vy += 1380 * delta;
+      body.x += body.vx * delta;
+      body.y += body.vy * delta;
+      body.angle += body.spin * 60 * delta;
+      if (body.x < 2 || body.x + body.width > width - 2) {
+        body.x = Math.max(2, Math.min(width - body.width - 2, body.x));
+        body.vx *= -.28; body.spin *= -.75;
+      }
+      if (body.y + body.height > floor) {
+        body.y = floor - body.height;
+        body.vy *= -.24; body.vx *= .74; body.spin *= .7;
+        if (Math.abs(body.vy) < 30) body.vy = 0;
+      }
+    });
+    for (let first = 0; first < gravityBodies.length; first += 1) {
+      for (let second = first + 1; second < gravityBodies.length; second += 1) {
+        const a = gravityBodies[first]; const b = gravityBodies[second];
+        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+        if (overlapX <= 0 || overlapY <= 0) continue;
+        if (overlapY <= overlapX) {
+          const shift = overlapY / 2 + .25;
+          if (a.y + a.height / 2 < b.y + b.height / 2) { a.y -= shift; b.y += shift; a.vy = Math.min(a.vy, 0); b.vy = Math.max(b.vy, 0) + 18; }
+          else { a.y += shift; b.y -= shift; b.vy = Math.min(b.vy, 0); a.vy = Math.max(a.vy, 0) + 18; }
+          a.vx *= .9; b.vx *= .9;
+        } else {
+          const shift = overlapX / 2 + .25;
+          if (a.x + a.width / 2 < b.x + b.width / 2) { a.x -= shift; b.x += shift; } else { a.x += shift; b.x -= shift; }
+          a.vx *= -.22; b.vx *= -.22;
+        }
+      }
+    }
+    gravityBodies.forEach(placeGravityBody);
+    const shouldSettle = now - startedAt > (replay ? 2300 : 3000);
+    if (shouldSettle) {
+      settleGravityBodies(gravityBodies, width, height);
+      shelf.removeAttribute('aria-busy');
+      gravityFrame = null;
+      return;
+    }
+    gravityFrame = window.requestAnimationFrame(animate);
+  };
+  gravityFrame = window.requestAnimationFrame(animate);
+}
+
 function renderLibrary(withDrop = true) {
+  stopGravity();
   const shelf = $('#stickerShelf');
   const falling = $('#fallingStickers');
   const visiblePhotos = getVisibleStickers();
@@ -285,29 +409,24 @@ function renderLibrary(withDrop = true) {
   $('#stickerEmpty').hidden = visiblePhotos.length !== 0;
   shelf.innerHTML = '';
   falling.innerHTML = '';
-  const pile = [[0, 0], [91, 0], [182, 0], [273, 0], [45, 88], [136, 88], [227, 88], [91, 184], [182, 184]];
-  const drifts = [-28, 18, -15, 24, 20, -24, 15, -18, 20];
   visiblePhotos.forEach((item, i) => {
     const slot = document.createElement('button');
     slot.type = 'button';
-    slot.className = 'sticker-slot';
+    slot.className = 'sticker-slot gravity-sticker';
     slot.setAttribute('aria-label', `Manage ${item.name}`);
-    slot.style.setProperty('--slot-delay', `${withDrop ? 0.42 + i * 0.1 : 0}s`);
-    slot.style.setProperty('--pile-left', `${pile[i % pile.length][0]}px`);
-    slot.style.setProperty('--pile-bottom', `${pile[i % pile.length][1]}px`);
-    slot.style.setProperty('--fall-drift', `${drifts[i % drifts.length]}px`);
+    slot.dataset.stickerId = item.id;
+    slot.dataset.gravityWidth = String([76, 84, 80, 88][stickerSeed(item.id) % 4]);
+    slot.dataset.gravityHeight = String([84, 92, 88][stickerSeed(item.id) % 3]);
+    slot.style.setProperty('--gravity-w', `${slot.dataset.gravityWidth}px`);
+    slot.style.setProperty('--gravity-h', `${slot.dataset.gravityHeight}px`);
     slot.append(makeSticker(item));
     slot.addEventListener('click', () => openStickerDetail(item.id));
     shelf.append(slot);
-    if (withDrop && i < 6) {
-      const fallingItem = document.createElement('div');
-      fallingItem.className = 'falling';
-      fallingItem.style.cssText = `--x:${10 + (i % 3) * 105}px;--rot:${(i - 3) * 10}deg;--delay:${i * 0.09}s`;
-      fallingItem.append(makeSticker(item));
-      falling.append(fallingItem);
-    }
   });
   renderGroupFilters();
+  const replay = $('#gravityReplay');
+  replay.disabled = visiblePhotos.length === 0;
+  window.requestAnimationFrame(() => runGravityDrop({ immediate: !withDrop }));
 }
 
 function openStickerDetail(stickerId) {
@@ -1124,7 +1243,7 @@ $('#saveStickerButton').addEventListener('click', () => {
   closeOverlay('saveScreen');
   closeOverlay('subjectScreen');
   setScreen('libraryScreen');
-  renderLibrary(false); renderTray(); renderCanvasDock();
+  renderLibrary(); renderTray(); renderCanvasDock();
   saveApp();
   window.setTimeout(() => { isSavingSticker = false; $('#saveStickerButton').disabled = false; }, 350);
 });
@@ -1344,5 +1463,7 @@ $('#sortButton').addEventListener('click', () => {
   $('#sortButton').setAttribute('aria-label', `Sorted by ${stickerSortMode}. Change sticker sorting`);
   renderLibrary(false);
 });
+
+$('#gravityReplay').addEventListener('click', () => runGravityDrop({ replay: true }));
 
 // Help stays available from the ? button without interrupting a first action.
