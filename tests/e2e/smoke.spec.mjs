@@ -32,6 +32,8 @@ test('library stickers can replay a gravity drop and remain manageable', async (
   await expect(page.locator('#stickerShelf')).not.toHaveAttribute('aria-busy', 'true', { timeout: 5000 });
   await page.getByRole('button', { name: 'Manage iced cup' }).click();
   await expect(page.getByRole('dialog', { name: 'Sticker details' })).toBeVisible();
+  await expect(page.locator('#stickerDetailPreview canvas')).toHaveCount(1);
+  await expect(page.locator('#detailPeelHint')).toContainText('Grab the sticker edge');
 });
 
 test('cloud cutout explains photo processing before making a network request', async ({ page }) => {

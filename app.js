@@ -48,6 +48,8 @@ let workingCutoutInput = null;
 let workingCutoutSource = null;
 let peelPreview = null;
 let peelPreviewRequest = 0;
+let detailPeelPreview = null;
+let detailPeelPreviewRequest = 0;
 let gravityFrame = null;
 let gravityBodies = [];
 let cameraStream = null;
@@ -433,14 +435,12 @@ function openStickerDetail(stickerId) {
   const item = photos.find((photo) => photo.id === stickerId);
   if (!item) return;
   activeStickerId = stickerId;
-  const preview = $('#stickerDetailPreview');
-  preview.innerHTML = '';
-  preview.append(makeSticker(item, 'detail-sticker'));
   $('#stickerDetailName').value = item.name || '';
   $('#stickerDetailGroup').innerHTML = `${item.group || 'everyday'} <span>⌄</span>`;
   $('#deleteSticker').textContent = 'delete';
   $('#deleteSticker').dataset.confirming = 'false';
   openSheet('stickerDetailSheet');
+  mountDetailPeelPreview(item);
 }
 
 function refreshStickerSurfaces() {
@@ -476,6 +476,7 @@ function openSheet(id) {
   focusDialog($(`#${id}`));
 }
 function closeSheets(shouldRestoreFocus = true) {
+  destroyDetailPeelPreview();
   backdrop.classList.remove('visible');
   $$('.bottom-sheet').forEach((el) => { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); });
   if (shouldRestoreFocus) restoreFocus();
@@ -830,18 +831,18 @@ function normalizeCutout(blob) {
   });
 }
 
-function peelPreviewOptions(source) {
-  const finish = {
-    'edge-soft': { width: selectedEdgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 },
-    'edge-bold': { width: selectedEdgeThickness + 13, edge: 3.2, shadow: 16, distance: 11 },
-    'edge-lift': { width: selectedEdgeThickness + 10, edge: 2.6, shadow: 23, distance: 16 }
-  }[selectedFinish] || { width: selectedEdgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 };
+function peelPreviewOptions(source, finish = selectedFinish, edgeThickness = selectedEdgeThickness) {
+  const finishStyle = {
+    'edge-soft': { width: edgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 },
+    'edge-bold': { width: edgeThickness + 13, edge: 3.2, shadow: 16, distance: 11 },
+    'edge-lift': { width: edgeThickness + 10, edge: 2.6, shadow: 23, distance: 16 }
+  }[finish] || { width: edgeThickness + 8, edge: 2.2, shadow: 13, distance: 9 };
   return {
     source: { type: 'image', src: source, padding: 96, textureMaxEdge: 1024 },
-    outline: { width: finish.width, color: '#fffdf7' },
-    edge: { width: finish.edge, strength: .72 },
-    shadow: { color: '#403731', opacity: .22, blur: finish.shadow, distance: finish.distance, angle: 42 },
-    peel: { radius: .13, stiffness: .72, grabWidth: 26, maxAngle: 3.2, release: 'reset', residue: selectedFinish === 'edge-lift', surfaceShadow: true },
+    outline: { width: finishStyle.width, color: '#fffdf7' },
+    edge: { width: finishStyle.edge, strength: .72 },
+    shadow: { color: '#403731', opacity: .22, blur: finishStyle.shadow, distance: finishStyle.distance, angle: 42 },
+    peel: { radius: .13, stiffness: .72, grabWidth: 26, maxAngle: 3.2, release: 'reset', residue: finish === 'edge-lift', surfaceShadow: true },
     back: { color: '#f2eadf', gloss: .46, roughness: .45 },
     material: { type: 'original', intensity: .28, scale: 1 },
     sound: { enabled: false, volume: 0 },
@@ -911,6 +912,75 @@ async function mountPeelPreview(source) {
 function openSavePreview() {
   openOverlay('saveScreen');
   mountPeelPreview(workingCutoutSource);
+}
+
+function destroyDetailPeelPreview() {
+  detailPeelPreviewRequest += 1;
+  try { detailPeelPreview?.destroy?.(); } catch (error) { console.warn('Could not release detail preview.', error); }
+  detailPeelPreview = null;
+  const preview = $('#stickerDetailPreview');
+  if (!preview) return;
+  preview.replaceChildren();
+}
+
+function showStaticDetailPreview(item) {
+  const preview = $('#stickerDetailPreview');
+  preview.replaceChildren();
+  preview.className = `sticker-detail-preview detail-peel-preview is-static-preview ${item.finish || 'edge-soft'}`;
+  preview.style.setProperty('--edge', `${item.edgeThickness ?? 3}px`);
+  preview.append(makeSticker(item, 'detail-sticker'));
+  $('#detailPeelHint').textContent = 'Preview ready. This device does not support the peel effect.';
+}
+
+function stickerForgeImageSource(source) {
+  const embedded = window.MEMENTO_STICKER_SOURCE_DATA?.[source];
+  if (embedded) return Promise.resolve(embedded);
+  if (/^(data:|blob:|https?:)/i.test(source || '')) return Promise.resolve(source);
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        canvas.getContext('2d').drawImage(image, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (error) { reject(error); }
+    };
+    image.onerror = () => reject(new Error('Could not prepare this sticker preview.'));
+    image.src = source;
+  });
+}
+
+async function mountDetailPeelPreview(item) {
+  const request = ++detailPeelPreviewRequest;
+  const preview = $('#stickerDetailPreview');
+  try { detailPeelPreview?.destroy?.(); } catch (error) { console.warn('Could not refresh detail preview.', error); }
+  detailPeelPreview = null;
+  preview.replaceChildren();
+  preview.className = `sticker-detail-preview detail-peel-preview ${item.finish || 'edge-soft'}`;
+  preview.style.setProperty('--edge', `${item.edgeThickness ?? 3}px`);
+  $('#detailPeelHint').textContent = 'Grab the sticker edge and peel it up.';
+  if (!item.image || typeof window.StickerForge?.createSticker !== 'function') {
+    showStaticDetailPreview(item);
+    return;
+  }
+  try {
+    const source = await stickerForgeImageSource(item.image);
+    if (request !== detailPeelPreviewRequest || !$('#stickerDetailSheet').classList.contains('open')) return;
+    const instance = await window.StickerForge.createSticker(preview, peelPreviewOptions(source, item.finish || 'edge-soft', item.edgeThickness ?? 3));
+    if (request !== detailPeelPreviewRequest || !$('#stickerDetailSheet').classList.contains('open')) {
+      instance.destroy();
+      return;
+    }
+    detailPeelPreview = instance;
+    preview.addEventListener('peelstart', () => { $('#detailPeelHint').textContent = 'Keep pulling from the edge.'; }, { once: true });
+    preview.addEventListener('peelend', () => { $('#detailPeelHint').textContent = 'Nice. It settles back into your library.'; }, { once: true });
+  } catch (error) {
+    if (request !== detailPeelPreviewRequest) return;
+    console.warn('Interactive detail preview is unavailable.', error);
+    showStaticDetailPreview(item);
+  }
 }
 
 function renderSubjectSelection() {

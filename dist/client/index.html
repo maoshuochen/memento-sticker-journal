@@ -14,7 +14,7 @@
     <meta name="twitter:description" content="Turn everyday photos into personal stickers, then keep the little things." />
     <meta name="twitter:image" content="/og.png" />
     <title>memento — sticker journal</title>
-    <link rel="stylesheet" href="./styles.css?v=14" />
+    <link rel="stylesheet" href="./styles.css?v=15" />
   </head>
   <body>
     <main class="app-shell" aria-label="Memento sticker journal prototype">
@@ -201,7 +201,8 @@
       <section id="stickerDetailSheet" class="bottom-sheet sticker-detail-sheet" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Sticker details">
         <div class="sheet-handle"></div>
         <p class="eyebrow">From your library</p>
-        <div id="stickerDetailPreview" class="sticker-detail-preview"></div>
+        <div id="stickerDetailPreview" class="sticker-detail-preview detail-peel-preview" aria-label="Interactive sticker preview"></div>
+        <p id="detailPeelHint" class="detail-peel-hint" aria-live="polite">Grab the sticker edge and peel it up.</p>
         <label class="sheet-field">Sticker name<input id="stickerDetailName" maxlength="36" /></label>
         <label class="sheet-field">Group<button id="stickerDetailGroup" class="select-field" type="button"></button></label>
         <div class="sticker-detail-actions">
@@ -228,6 +229,7 @@
     </main>
     <script src="./vendor/html2canvas.min.js?v=1"></script>
     <script src="./vendor/sticker-forge.iife.js?v=1"></script>
-    <script src="./app.js?v=13"></script>
+    <script src="./assets/sticker-source-data.js?v=2"></script>
+    <script src="./app.js?v=14"></script>
   </body>
 </html>
