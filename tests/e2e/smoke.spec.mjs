@@ -30,6 +30,15 @@ test('library stickers can replay a gravity drop and remain manageable', async (
   await page.getByRole('button', { name: 'Let stickers fall again' }).click();
   await expect(page.locator('#stickerShelf')).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('#stickerShelf')).not.toHaveAttribute('aria-busy', 'true', { timeout: 5000 });
+  const settledLayout = await page.locator('.gravity-sticker').evaluateAll((stickers, shelf) => {
+    const bounds = shelf.getBoundingClientRect();
+    return stickers.map((sticker) => {
+      const rect = sticker.getBoundingClientRect();
+      return { x: Math.round(rect.left - bounds.left), y: Math.round(rect.top - bounds.top), visible: rect.width > 20 && rect.height > 20 };
+    });
+  }, await page.locator('#stickerShelf').elementHandle());
+  expect(settledLayout.every((sticker) => sticker.visible && sticker.x >= -8 && sticker.y >= -8)).toBeTruthy();
+  expect(new Set(settledLayout.map((sticker) => `${sticker.x},${sticker.y}`)).size).toBe(9);
   await page.getByRole('button', { name: 'Manage iced cup' }).click();
   await expect(page.getByRole('dialog', { name: 'Sticker details' })).toBeVisible();
   await expect(page.locator('#stickerDetailPreview canvas')).toHaveCount(1);

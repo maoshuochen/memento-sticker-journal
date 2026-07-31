@@ -297,29 +297,22 @@ function placeGravityBody(body) {
 }
 
 function settleGravityBodies(bodies, width, height) {
-  const floor = Math.max(0, height - 5);
-  for (let pass = 0; pass < 24; pass += 1) {
-    bodies.forEach((body) => {
-      body.x = Math.max(2, Math.min(width - body.width - 2, body.x));
-      body.y = Math.min(floor - body.height, body.y);
-    });
-    for (let first = 0; first < bodies.length; first += 1) {
-      for (let second = first + 1; second < bodies.length; second += 1) {
-        const a = bodies[first]; const b = bodies[second];
-        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-        if (overlapX <= 0 || overlapY <= 0) continue;
-        if (overlapY <= overlapX) {
-          const shift = overlapY / 2 + .5;
-          if (a.y + a.height / 2 < b.y + b.height / 2) { a.y -= shift; b.y += shift; } else { a.y += shift; b.y -= shift; }
-        } else {
-          const shift = overlapX / 2 + .5;
-          if (a.x + a.width / 2 < b.x + b.width / 2) { a.x -= shift; b.x += shift; } else { a.x += shift; b.x -= shift; }
-        }
-      }
-    }
-  }
-  bodies.forEach((body) => { body.y = Math.max(0, Math.min(floor - body.height, body.y)); placeGravityBody(body); });
+  const columns = width < 280 ? 2 : 3;
+  const rowPitch = 98;
+  const bottomInset = 22;
+  const cellWidth = width / columns;
+  bodies.forEach((body, index) => {
+    const seed = stickerSeed(body.element.dataset.stickerId);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const nudgeX = ((seed % 17) - 8) * .65;
+    const nudgeY = ((seed % 11) - 5) * .55;
+    body.x = Math.max(5, Math.min(width - body.width - 5, cellWidth * (column + .5) - body.width / 2 + nudgeX));
+    body.y = Math.max(4, Math.min(height - body.height - bottomInset, height - body.height - bottomInset - row * rowPitch + nudgeY));
+    body.angle = ((seed % 9) - 4) * 1.6;
+    body.element.style.zIndex = String(10 + row);
+    placeGravityBody(body);
+  });
 }
 
 function runGravityDrop({ replay = false, immediate = false } = {}) {
