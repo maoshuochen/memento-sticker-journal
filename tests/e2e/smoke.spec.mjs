@@ -45,6 +45,29 @@ test('library stickers can replay a gravity drop and remain manageable', async (
   await expect(page.locator('#detailPeelHint')).toContainText('Grab the sticker edge');
 });
 
+test('a large library keeps every sticker reachable without overlapping the first screen', async ({ page }) => {
+  await page.addInitScript(() => {
+    const photos = Array.from({ length: 25 }, (_, index) => ({
+      id: `collection-${index + 1}`,
+      name: `collection ${index + 1}`,
+      group: 'everyday',
+      image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Ccircle cx="40" cy="40" r="32" fill="%23d77e61"/%3E%3C/svg%3E',
+      finish: 'edge-soft',
+      edgeThickness: 3,
+      createdAt: Date.now() - index
+    }));
+    localStorage.setItem('memento-journal-v2', JSON.stringify({ photos, journals: [] }));
+  });
+  await page.goto('index.html');
+  await expect(page.locator('.gravity-sticker')).toHaveCount(25);
+  await expect(page.locator('#stickerShelf')).not.toHaveAttribute('aria-busy', 'true', { timeout: 5000 });
+  const canScroll = await page.locator('.sticker-stage').evaluate((stage) => stage.scrollHeight > stage.clientHeight);
+  expect(canScroll).toBeTruthy();
+  await page.locator('.sticker-stage').evaluate((stage) => { stage.scrollTop = stage.scrollHeight; });
+  await page.getByRole('button', { name: 'Manage collection 25' }).click();
+  await expect(page.getByRole('dialog', { name: 'Sticker details' })).toBeVisible();
+});
+
 test('cloud cutout explains photo processing before making a network request', async ({ page }) => {
   await page.goto('index.html');
   await page.locator('#photoUpload').setInputFiles('assets/iced-cup-cutout.png');

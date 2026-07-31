@@ -296,19 +296,30 @@ function placeGravityBody(body) {
   body.element.style.transform = `translate3d(${Math.round(body.x)}px, ${Math.round(body.y)}px, 0) rotate(${body.angle.toFixed(1)}deg)`;
 }
 
+function gravityColumnCount(width) {
+  return width >= 310 ? 3 : 2;
+}
+
+function gravityShelfHeight(count, width, availableHeight) {
+  const rows = Math.ceil(Math.max(1, count) / gravityColumnCount(width));
+  return Math.max(availableHeight, 30 + rows * 98);
+}
+
 function settleGravityBodies(bodies, width, height) {
-  const columns = width < 280 ? 2 : 3;
+  const columns = gravityColumnCount(width);
   const rowPitch = 98;
   const bottomInset = 22;
   const cellWidth = width / columns;
-  bodies.forEach((body, index) => {
+  const scrollable = $('#stickerShelf').dataset.gravityScrollable === 'true';
+  bodies.forEach((body) => {
     const seed = stickerSeed(body.element.dataset.stickerId);
-    const column = index % columns;
-    const row = Math.floor(index / columns);
+    const column = body.index % columns;
+    const row = Math.floor(body.index / columns);
     const nudgeX = ((seed % 17) - 8) * .65;
     const nudgeY = ((seed % 11) - 5) * .55;
     body.x = Math.max(5, Math.min(width - body.width - 5, cellWidth * (column + .5) - body.width / 2 + nudgeX));
-    body.y = Math.max(4, Math.min(height - body.height - bottomInset, height - body.height - bottomInset - row * rowPitch + nudgeY));
+    const packedY = scrollable ? 12 + row * rowPitch + nudgeY : height - body.height - bottomInset - row * rowPitch + nudgeY;
+    body.y = Math.max(4, Math.min(height - body.height - bottomInset, packedY));
     body.angle = ((seed % 9) - 4) * 1.6;
     body.element.style.zIndex = String(10 + row);
     placeGravityBody(body);
@@ -332,6 +343,7 @@ function runGravityDrop({ replay = false, immediate = false } = {}) {
     const restingY = -bodyHeight - index * 4;
     return {
       element, width: bodyWidth, height: bodyHeight,
+      index,
       x: restingX, y: reducedMotion ? Math.max(0, height - bodyHeight - 7 - (index % 3) * 5) : restingY,
       vx: ((seed % 9) - 4) * 10, vy: reducedMotion ? 0 : 20 + (index % 3) * 35,
       angle: ((seed % 13) - 6) * 1.4, spin: ((seed % 7) - 3) * .13
@@ -364,9 +376,10 @@ function runGravityDrop({ replay = false, immediate = false } = {}) {
         if (Math.abs(body.vy) < 30) body.vy = 0;
       }
     });
-    for (let first = 0; first < gravityBodies.length; first += 1) {
-      for (let second = first + 1; second < gravityBodies.length; second += 1) {
-        const a = gravityBodies[first]; const b = gravityBodies[second];
+    const collisionBodies = gravityBodies.slice(0, 18);
+    for (let first = 0; first < collisionBodies.length; first += 1) {
+      for (let second = first + 1; second < collisionBodies.length; second += 1) {
+        const a = collisionBodies[first]; const b = collisionBodies[second];
         const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
         const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
         if (overlapX <= 0 || overlapY <= 0) continue;
@@ -403,6 +416,8 @@ function renderLibrary(withDrop = true) {
   $('#stickerCount').textContent = visiblePhotos.length === photos.length ? `${photos.length} stickers` : `${visiblePhotos.length} of ${photos.length}`;
   $('#stickerEmpty').hidden = visiblePhotos.length !== 0;
   shelf.innerHTML = '';
+  shelf.style.removeProperty('--gravity-shelf-height');
+  delete shelf.dataset.gravityScrollable;
   falling.innerHTML = '';
   visiblePhotos.forEach((item, i) => {
     const slot = document.createElement('button');
@@ -421,7 +436,13 @@ function renderLibrary(withDrop = true) {
   renderGroupFilters();
   const replay = $('#gravityReplay');
   replay.disabled = visiblePhotos.length === 0;
-  window.requestAnimationFrame(() => runGravityDrop({ immediate: !withDrop }));
+  window.requestAnimationFrame(() => {
+    const availableHeight = shelf.clientHeight;
+    const requiredHeight = gravityShelfHeight(visiblePhotos.length, shelf.clientWidth, availableHeight);
+    shelf.style.setProperty('--gravity-shelf-height', `${requiredHeight}px`);
+    shelf.dataset.gravityScrollable = String(requiredHeight > availableHeight + 2);
+    window.requestAnimationFrame(() => runGravityDrop({ immediate: !withDrop }));
+  });
 }
 
 function openStickerDetail(stickerId) {
