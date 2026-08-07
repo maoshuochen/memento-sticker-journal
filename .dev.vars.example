@@ -1,0 +1,3 @@
+ALIBABA_CLOUD_ACCESS_KEY_ID=replace_me
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=replace_me
+RATE_LIMIT_SALT=replace_with_a_long_random_value

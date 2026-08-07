@@ -1,145 +1,108 @@
 # Memento — AI 贴纸手帐
 
-把照片里的小物件做成贴纸，收进一本可以自由拼贴的数字手帐。
+把照片里的小物件做成贴纸，收进一本可以自由拼贴、数据留在本地的数字手帐。
 
-线上版本：[memento-sticker-journal.vercel.app](https://memento-sticker-journal.vercel.app)
-源码仓库：[maoshuochen/memento-sticker-journal](https://github.com/maoshuochen/memento-sticker-journal)
-
-## 功能
-
-- 从相册上传或调用相机拍照，框选主体后生成透明背景贴纸。
-- 接入阿里云图像分割；云端不可用时自动提供本地快速抠图作为降级方案。
-- 首次使用云端抠图前会说明图片处理路径；可重新框选、重试云端抠图或直接选择本地快速抠图。
-- 抠图完成后及单张贴纸详情中，都可从贴纸边缘轻轻“撕起”预览，确认边缘与阴影的触感；不支持 WebGL 时自动回退为静态预览。
-- 在贴纸库中搜索、分组筛选、排序、重命名、移动分组或删除贴纸。
-- 贴纸库以轻量的重力、碰撞和回弹效果呈现已保存贴纸；可随时重播，且贴纸落稳后仍可直接管理。
-- 新建多本手帐，选择封面与纸张，并用提示词帮助开始记录。
-- 在画布上添加、拖动、旋转、缩放和调整贴纸层级；支持撤销、重做、编辑页面文字与新增页面。
-- 将单页手帐导出为 PNG。
-- 贴纸和手帐数据默认保存在浏览器 IndexedDB 中；可导出和恢复本地 JSON 备份，无需账号即可使用。
+当前生产回滚入口仍保留在 [Vercel](https://memento-sticker-journal.vercel.app)；Cloudflare Workers 预览验收通过后再切换主地址。
 
 ## 技术栈
 
-- 原生 HTML、CSS、JavaScript
-- Vercel Serverless Function：`api/cutout.js`
-- 阿里云图像分割 SDK：`@alicloud/imageseg20191230`
-- 随构建产物发布的 `html2canvas`，用于可靠地导出页面
-- [Sticker Forge](https://github.com/CatsJuice/sticker-forge)：本地随构建发布的 MIT 许可 WebGL 撕贴纸预览组件（默认静音）
-- Node.js 20+
+- Node.js 24 LTS、React 19.2、React Router 8、TypeScript 6
+- Vite 8、Tailwind CSS 4、shadcn/ui CLI v4（new-york + Radix）
+- Dexie 4、Zod 4
+- Vitest、React Testing Library、Playwright、axe
+- Cloudflare Vite Plugin、Workers Static Assets、Module Worker
 
-## 本地运行
+一个 Worker 同时发布 SPA 静态资源和 `/api/cutout`。项目不依赖 Next.js、Vercel Function、Upstash 或阿里云 Node SDK。
+
+## 本地开发
+
+需要 Node.js 24：
 
 ```bash
 npm ci
-npm run check
+cp .dev.vars.example .dev.vars
+npm run dev
+```
+
+`.dev.vars` 只用于本地，已被 Git 忽略。未配置阿里云凭据时，界面和本地数据功能可正常使用，抠图接口返回 `503`。
+
+常用命令：
+
+```bash
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:e2e
 npm run build
-cd public && python3 -m http.server 4173
+npm run check:cloudflare
 ```
 
-然后打开 <http://127.0.0.1:4173>。
+## 数据与迁移
 
-静态服务器可完整预览界面和本地快速抠图；`/api/cutout` 需要 Vercel Function 或等效的 Node 服务，因此本地静态预览中云端抠图不可用是预期行为。
+新版使用 `memento-journal-react` Dexie 数据库，图片 Blob 与业务元数据分离。首次启动会在同一 Origin 内尝试读取旧的 `memento-journal` IndexedDB 和 `memento-journal-v2` localStorage；迁移成功前不会删除旧数据。
 
-## 环境变量
+Vercel 与 Workers 地址属于不同 Origin，浏览器不能自动跨域读取 IndexedDB。迁移步骤是：
 
-云端 AI 抠图需要在 Vercel 项目中配置以下环境变量：
+1. 在旧 Vercel 站导出 v1 备份。
+2. 在 Cloudflare 站点击“导入 v1 备份”。
+3. 新版校验备份后，经二次确认写入 Dexie。
+4. 核对贴纸、手帐、页面与图片后再把 Cloudflare 地址设为主入口。
+
+新导出格式为 v2，同时继续支持导入 v1。当前没有账号或云同步；`SyncAdapter` 与变更日志已预留，未来可接 D1 元数据和 R2 图片。
+
+## `/api/cutout`
+
+```text
+POST /api/cutout
+Content-Type: multipart/form-data
+image: JPEG | PNG | WebP，最大 3 MiB
+```
+
+成功返回 `200 image/png`、`Cache-Control: no-store` 和 `X-Cutout-Source: alibaba-cloud`。错误响应包含用户信息和稳定 `code`。Worker 会验证 MIME 与文件签名，限制输出为 6 MiB，并对上传、分割和下载分别设置超时。
+
+Cloudflare Rate Limiting binding 按不可逆 IP 摘要限制为每 60 秒 8 次。日志只记录 request ID、耗时、状态与字节数，不记录图片、原始 IP、凭据或完整上游 URL。
+
+## Cloudflare 配置与发布
+
+首次部署前写入 Secrets：
 
 ```bash
-ALIBABA_CLOUD_ACCESS_KEY_ID=your_access_key_id
-ALIBABA_CLOUD_ACCESS_KEY_SECRET=your_access_key_secret
+npx wrangler secret put ALIBABA_CLOUD_ACCESS_KEY_ID
+npx wrangler secret put ALIBABA_CLOUD_ACCESS_KEY_SECRET
+npx wrangler secret put RATE_LIMIT_SALT
 ```
 
-若要在多实例间共享 API 限流，还可接入 Vercel Marketplace 的 Upstash Redis，并在 Vercel 中配置：
+预览与生产命令：
 
 ```bash
-UPSTASH_REDIS_REST_URL=https://...
-UPSTASH_REDIS_REST_TOKEN=...
-RATE_LIMIT_SALT=a_private_random_value
+npm run deploy:preview
+npm run deploy
 ```
 
-没有 Redis 配置时，接口仍有单实例内存限流；生产环境建议同时在 Vercel Firewall 中为 `/api/cutout` 设置速率限制规则。
+Workers Builds 连接 GitHub 后使用：
 
-不要将 Access Key 写入仓库、README、前端代码或公开截图。未配置时接口返回 `503`，前端会引导用户使用快速抠图。
+- Production branch：`main`
+- Build command：`npm ci && npm run build`
+- Deploy command：`npx wrangler deploy`
+- 非生产分支：`npx wrangler versions upload`
 
-## AI 抠图接口
-
-`POST /api/cutout`
-
-请求体：
-
-```json
-{
-  "image": "data:image/png;base64,..."
-}
-```
-
-- 输入支持 JPEG、PNG、WebP；云端接口限制为 3MB。
-- 成功时返回 `image/png`。
-- 接口按来源 IP 限流为每分钟 8 次；配置 Upstash 后限流会跨 Serverless 实例生效，响应不缓存。
-- 接口会在 Vercel Runtime Logs 中输出匿名化的成功、失败、限流和耗时事件，便于观察抠图质量与成本。
-- 选择云端抠图时，图片会发送到阿里云图像分割服务处理；本地快速抠图不会调用该服务。
-
-## 部署到 Vercel
-
-当前 Vercel 项目已关联 GitHub 仓库，并使用 `main` 作为生产分支：
-
-- 推送到 `main` 会自动构建并更新生产站点。
-- 推送其他分支或创建 Pull Request 会生成独立的预览部署，适合在合并前检查界面与抠图流程。
-- 生产环境变量在 Vercel 中管理；GitHub 仓库不保存 Access Key。
-
-一般开发流程：
-
-```bash
-git checkout -b feature/my-change
-# 开发、验证并提交
-git push -u origin feature/my-change
-```
-
-确认预览部署后，将变更合并到 `main` 即可自动发布。需要绕过 Git 集成进行紧急部署时，仍可使用：
-
-```bash
-npx vercel
-npx vercel --prod
-```
-
-部署前请确认项目已关联 Vercel，并已配置上述生产环境变量。`npm run build` 会生成 `public/` 和 `dist/`；它们是构建产物，不建议直接修改。
+生产 Worker 名称为 `memento-sticker-journal`。发布后至少保留 Vercel 版本 7 天；回滚只需恢复旧站对外链接，不删除 Cloudflare 部署历史或本地数据。
 
 ## 项目结构
 
 ```text
-.
-├── index.html          # 应用结构与可访问性语义
-├── styles.css          # 视觉系统与响应式布局
-├── app.js              # 贴纸、手帐、画布与本地持久化逻辑
-├── api/cutout.js       # Vercel 云端抠图接口
-├── tests/              # API 单元测试与浏览器端到端冒烟测试
-├── worker/index.js     # 静态/Worker 部署入口
-├── assets/             # 内置贴纸与 Open Graph 图片
-├── vendor/             # 随构建发布的前端依赖与第三方许可证
-├── scripts/build.mjs   # 构建脚本
-├── UX_RESEARCH.md      # 竞品调研与多轮可用性测试记录
-└── vercel.json         # 安全响应头配置
+src/app/             路由布局与数据 Provider
+src/pages/           贴纸库、手帐列表与编辑器
+src/components/      Memento 组合组件与 shadcn/ui
+src/data/            Dexie、迁移、备份、repository、同步边界
+src/domain/          Zod 模型与编辑历史
+worker/index.ts      Cloudflare Worker 与阿里云 Web Crypto 调用
+public/_headers      CSP 与静态安全响应头
+tests/unit/          数据、编辑历史与 Worker 单元测试
+tests/e2e/           手机与桌面 Playwright 全流程测试
+wrangler.jsonc       Static Assets、限流与 Observability
 ```
-
-## 数据与隐私
-
-- 日常贴纸、手帐、页面文字和排版保存在当前浏览器设备中；清除站点数据会清除这些内容。
-- 可从帮助面板导出完整 JSON 备份，并在另一台设备或清除数据后恢复；恢复会替换当前设备的本地内容。
-- 当前原型没有账户、跨设备同步或多人协作。
-- 云端抠图属于按需调用：只有用户选择该能力时才会上传已框选的图片。
-
-## 验证
-
-```bash
-npm run check
-npm run build
-npm test
-```
-
-`npm test` 会运行 API 输入与限流测试，并通过本机 Chrome 执行“保存后刷新恢复、备份导出、云端抠图隐私提示”的端到端冒烟测试。若 Chrome 不在默认 macOS 路径，可设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`。
-
-产品调研、测试范围与下一轮用户研究建议见 [UX_RESEARCH.md](UX_RESEARCH.md)。
 
 ## 第三方许可
 
-保存前的撕贴纸预览使用 [Sticker Forge](https://github.com/CatsJuice/sticker-forge)，版权归 CatsJuice，采用 MIT 许可；完整许可证见 [vendor/STICKER_FORGE_LICENSE.txt](vendor/STICKER_FORGE_LICENSE.txt)。组件仅用于交互预览，Memento 不加载其音效，也不使用原项目的图片或品牌素材。
+撕贴纸预览按需加载 [Sticker Forge](https://github.com/CatsJuice/sticker-forge)，采用 MIT 许可；完整许可证随静态资源发布于 `public/vendor/STICKER_FORGE_LICENSE.txt`。`html2canvas` 通过 npm 动态导入，只在导出页面时加载。
