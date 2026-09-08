@@ -1,37 +1,139 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Download, Minus, Plus, Redo2, RotateCw, Trash2, Undo2 } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Download, Loader2, PanelTop, Plus, Redo2, Trash2, Type, Undo2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Navigate, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { useAppData } from "@/app/AppDataProvider"
+import { FabricJournalCanvas, type CanvasRenderState, type CanvasSelectionAnchor, type FabricJournalCanvasHandle } from "@/components/memento/FabricJournalCanvas"
 import { StickerImage } from "@/components/memento/StickerImage"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { appendHistory, moveHistory } from "@/domain/editor"
-import type { JournalPageRecord, Placement } from "@/domain/model"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { appendCanvasHistory, CANVAS_TAPE_COLORS, CANVAS_TEXT_COLORS, CANVAS_TEXT_FONTS, canvasDocumentFromPlacements, canvasTextFontFamily, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, emptyCanvasDocument, moveCanvasHistory } from "@/domain/editor"
+import { isCanvasJournalPage, type CanvasDocument, type CanvasJournalPageRecord, type CanvasObject, type CanvasTextFont } from "@/domain/model"
+import { shouldApplyRecord } from "@/domain/syncProtocol"
+import { createCanvasWriteQueue, type CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { downloadBlob } from "@/lib/images"
 import { cn } from "@/lib/utils"
 
-function stickerIdFromPlacement(id: string): string {
-  return id.split("::", 1)[0] ?? id
+function drawJournalPaper(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  paper: "paper-grid" | "paper-plain" | "paper-lined" | "paper-calendar" | "paper-ledger" | "paper-sprinkle",
+): void {
+  context.fillStyle = "#faf7ed"
+  context.fillRect(0, 0, width, height)
+  context.save()
+  if (paper === "paper-grid") {
+    context.fillStyle = "#c7bda8"
+    for (let y = 7; y < height; y += 14) for (let x = 7; x < width; x += 14) {
+      context.beginPath()
+      context.arc(x, y, 1, 0, Math.PI * 2)
+      context.fill()
+    }
+  }
+  if (paper === "paper-lined" || paper === "paper-ledger") {
+    context.strokeStyle = "#d7cfc1"
+    context.lineWidth = 1
+    for (let y = 27; y < height; y += 30) {
+      context.beginPath()
+      context.moveTo(0, y)
+      context.lineTo(width, y)
+      context.stroke()
+    }
+  }
+  if (paper === "paper-calendar") {
+    context.strokeStyle = "#d7cfc1"
+    context.lineWidth = 1
+    for (let x = 0; x <= width; x += 64) {
+      context.beginPath()
+      context.moveTo(x, 0)
+      context.lineTo(x, height)
+      context.stroke()
+    }
+    for (let y = 0; y <= height; y += 64) {
+      context.beginPath()
+      context.moveTo(0, y)
+      context.lineTo(width, y)
+      context.stroke()
+    }
+  }
+  if (paper === "paper-ledger") {
+    context.strokeStyle = "#d1c7b8"
+    context.beginPath()
+    context.moveTo(width * .284, 0)
+    context.lineTo(width * .284, height)
+    context.stroke()
+  }
+  if (paper === "paper-sprinkle") {
+    // A deterministic scatter gives exported pages the same quiet paper feel
+    // without depending on CSS Color 4 syntax that canvas exporters reject.
+    for (let index = 0; index < Math.ceil(width * height / 1_300); index += 1) {
+      const x = (index * 71) % width
+      const y = (index * 113) % height
+      context.fillStyle = index % 2 ? "rgba(168, 125, 89, .32)" : "rgba(112, 142, 169, .28)"
+      context.beginPath()
+      context.arc(x, y, 1, 0, Math.PI * 2)
+      context.fill()
+    }
+  }
+  context.restore()
 }
 
 export function JournalEditorPage() {
   const { journalId } = useParams()
   const navigate = useNavigate()
-  const { snapshot, repository } = useAppData()
+  const { snapshot, repository, assetUrls } = useAppData()
   const journal = snapshot.journals.find((item) => item.id === journalId)
   const [pageNumber, setPageNumber] = useState(journal?.currentPage ?? 1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [wordsOpen, setWordsOpen] = useState(false)
-  const [headline, setHeadline] = useState("")
-  const [note, setNote] = useState("")
+  const [selectedTextColor, setSelectedTextColor] = useState<string | null>(null)
+  const [selectedTextFont, setSelectedTextFont] = useState<CanvasTextFont | null>(null)
+  const [fontPickerOpen, setFontPickerOpen] = useState(false)
+  const [tapePickerOpen, setTapePickerOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [selectedAnchor, setSelectedAnchor] = useState<CanvasSelectionAnchor | null>(null)
   const canvasRef = useRef<HTMLElement>(null)
+  const fabricRef = useRef<FabricJournalCanvasHandle>(null)
+  const canvasPageCacheRef = useRef(new Map<string, CanvasJournalPageRecord>())
+  const [savedPages, setSavedPages] = useState<ReadonlyMap<string, CanvasJournalPageRecord>>(new Map())
+  const canvasWriteQueueRef = useRef(createCanvasWriteQueue())
+  const activePageIdRef = useRef<string | null>(null)
+  const persistedSequenceRef = useRef(new Map<string, number>())
+  const [acknowledgedOperation, setAcknowledgedOperation] = useState<CanvasOperationToken | null>(null)
+  const [canvasRenderState, setCanvasRenderState] = useState<CanvasRenderState>({ pageId: null, loading: true, complete: false, hasErrors: false })
 
-  const page = snapshot.journalPages.find((item) => item.journalId === journalId && item.pageNumber === pageNumber)
-  const stickerById = useMemo(() => new Map(snapshot.stickers.map((sticker) => [sticker.id, sticker])), [snapshot.stickers])
+  const snapshotPage = snapshot.journalPages.find((item) => item.journalId === journalId && item.pageNumber === pageNumber)
+  const savedPage = snapshotPage ? savedPages.get(snapshotPage.id) : undefined
+  const page = savedPage && snapshotPage && !shouldApplyRecord(savedPage, snapshotPage) ? savedPage : snapshotPage
+  const canvasPage = page && isCanvasJournalPage(page) ? page : null
+  const pageId = canvasPage?.id ?? null
+  const migrated = page ? canvasPage !== null : true
+  const document = useMemo<CanvasDocument>(() => {
+    if (!page) return emptyCanvasDocument()
+    return isCanvasJournalPage(page) ? page.canvasDocument : canvasDocumentFromPlacements(page.placements)
+  }, [page])
+
+  useEffect(() => {
+    activePageIdRef.current = pageId
+  }, [pageId])
+
+  const handleCanvasRenderStateChange = useCallback((state: CanvasRenderState): void => {
+    if (state.pageId !== pageId) return
+    setCanvasRenderState(state)
+  }, [pageId])
+
+  useEffect(() => {
+    if (!canvasPage) return
+    const cached = canvasPageCacheRef.current.get(canvasPage.id)
+    // IndexedDB live queries can briefly report a record written just before
+    // a newer local save. Never let that acknowledgement move our write base
+    // backwards, or a later UI action could resurrect stale canvas state.
+    if (!cached || shouldApplyRecord(cached, canvasPage)) {
+      canvasPageCacheRef.current.set(canvasPage.id, canvasPage)
+    }
+  }, [canvasPage])
 
   useEffect(() => {
     if (!journal || page) return
@@ -43,58 +145,86 @@ export function JournalEditorPage() {
       updatedAt: timestamp,
       journalId: journal.id,
       pageNumber,
-      words: { headline: "", note: "" },
-      placements: [],
-      history: { entries: [[]], index: 0 },
+      canvasDocument: emptyCanvasDocument(),
+      history: { entries: [emptyCanvasDocument()], index: 0 },
     })
   }, [journal, page, pageNumber, repository])
 
   if (!journalId || !journal) return <Navigate to="/journals" replace />
   const activeJournal = journal
 
-  async function persistPage(next: JournalPageRecord): Promise<void> {
-    await repository.putJournalPage({ ...next, revision: next.revision + 1, updatedAt: Date.now() })
-  }
-
-  async function commitPlacements(placements: Placement[]): Promise<void> {
-    if (!page) return
-    await persistPage({ ...page, placements, history: appendHistory(page.history, placements) })
-  }
-
-  async function addSticker(stickerId: string): Promise<void> {
-    if (!page) return
-    const locations = [[204, 125, 8], [38, 247, -8], [189, 253, 4]] as const
-    const [left, top, angle] = locations[page.placements.length % locations.length] ?? locations[0]
-    const placement: Placement = {
-      id: `${stickerId}::${crypto.randomUUID()}`,
-      left,
-      top,
-      angle,
-      scale: 1,
-      zIndex: Math.max(0, ...page.placements.map((item) => item.zIndex)) + 1,
-    }
-    await commitPlacements([...page.placements, placement])
-    setSelectedId(placement.id)
-  }
-
-  async function updateSelected(update: Partial<Placement>): Promise<void> {
-    if (!page || !selectedId) return
-    await commitPlacements(page.placements.map((item) => item.id === selectedId ? { ...item, ...update } : item))
+  function commitCanvas(nextDocument: CanvasDocument, operation: CanvasOperationToken): void {
+    if (!operation.pageId || operation.kind !== "edit") return
+    void canvasWriteQueueRef.current.enqueue(operation, async () => {
+      const current = canvasPageCacheRef.current.get(operation.pageId)
+      if (!current) return
+      const lastPersistedSequence = persistedSequenceRef.current.get(operation.pageId) ?? 0
+      if (operation.sequence <= lastPersistedSequence) return
+      const next: CanvasJournalPageRecord = {
+        ...current,
+        canvasDocument: nextDocument,
+        history: appendCanvasHistory(current.history, nextDocument),
+        revision: current.revision + 1,
+        updatedAt: Date.now(),
+      }
+      await repository.putJournalPage(next)
+      canvasPageCacheRef.current.set(operation.pageId, next)
+      setSavedPages((current) => new Map(current).set(operation.pageId, next))
+      persistedSequenceRef.current.set(operation.pageId, operation.sequence)
+      if (activePageIdRef.current === operation.pageId) setAcknowledgedOperation(operation)
+    }).catch((cause: unknown) => {
+      toast.error(cause instanceof Error ? cause.message : "保存这一页失败。")
+    })
   }
 
   async function undoRedo(direction: -1 | 1): Promise<void> {
-    if (!page) return
-    const result = moveHistory(page.history, direction)
-    if (!result) return
-    await persistPage({ ...page, ...result })
-    setSelectedId(null)
+    const targetPageId = activePageIdRef.current
+    if (!targetPageId) return
+    const operation = canvasWriteQueueRef.current.next(targetPageId, direction < 0 ? "undo" : "redo")
+    try {
+      await canvasWriteQueueRef.current.enqueue(operation, async () => {
+        const current = canvasPageCacheRef.current.get(targetPageId)
+        if (!current) return false
+        const result = moveCanvasHistory(current.history, direction)
+        if (!result) return false
+        const next: CanvasJournalPageRecord = {
+          ...current,
+          canvasDocument: result.document,
+          history: result.history,
+          revision: current.revision + 1,
+          updatedAt: Date.now(),
+        }
+        await repository.putJournalPage(next)
+        canvasPageCacheRef.current.set(targetPageId, next)
+        setSavedPages((current) => new Map(current).set(targetPageId, next))
+        persistedSequenceRef.current.set(targetPageId, operation.sequence)
+        if (activePageIdRef.current === targetPageId) setAcknowledgedOperation(operation)
+        return true
+      })
+      if (activePageIdRef.current === targetPageId) setSelectedId(null)
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "无法切换历史记录。")
+    }
   }
 
   async function changePage(next: number): Promise<void> {
     if (next < 1 || next > activeJournal.pages) return
+    setAcknowledgedOperation(null)
+    setCanvasRenderState({ pageId: null, loading: true, complete: false, hasErrors: false })
     setSelectedId(null)
+    setSelectedTextColor(null)
+    setSelectedTextFont(null)
+    setFontPickerOpen(false)
+    setTapePickerOpen(false)
+    setSelectedAnchor(null)
     setPageNumber(next)
     await repository.putJournal({ ...activeJournal, currentPage: next, revision: activeJournal.revision + 1, updatedAt: Date.now() })
+  }
+
+  function handleSelectedObjectChange(object: CanvasObject | null): void {
+    setSelectedTextColor(object?.kind === "text" ? object.color ?? DEFAULT_CANVAS_TEXT_COLOR : null)
+    setSelectedTextFont(object?.kind === "text" ? object.font ?? DEFAULT_CANVAS_TEXT_FONT : null)
+    if (object?.kind !== "text") setFontPickerOpen(false)
   }
 
   async function addPage(): Promise<void> {
@@ -108,158 +238,225 @@ export function JournalEditorPage() {
       updatedAt: timestamp,
       journalId: activeJournal.id,
       pageNumber: next,
-      words: { headline: "", note: "" },
-      placements: [],
-      history: { entries: [[]], index: 0 },
+      canvasDocument: emptyCanvasDocument(),
+      history: { entries: [emptyCanvasDocument()], index: 0 },
     })
+    setAcknowledgedOperation(null)
+    setCanvasRenderState({ pageId: null, loading: true, complete: false, hasErrors: false })
     setPageNumber(next)
   }
 
-  function openWords(): void {
-    setHeadline(page?.words.headline ?? "")
-    setNote(page?.words.note ?? "")
-    setWordsOpen(true)
-  }
-
-  async function saveWords(): Promise<void> {
-    if (!page) return
-    await persistPage({ ...page, words: { headline, note } })
-    setWordsOpen(false)
-  }
-
   async function exportPage(): Promise<void> {
-    if (!canvasRef.current) return
-    const { default: html2canvas } = await import("html2canvas")
-    const canvas = await html2canvas(canvasRef.current, { backgroundColor: "#faf7ed", scale: 2, useCORS: true })
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error("导出失败。")), "image/png"))
-    downloadBlob(blob, `${activeJournal.title.replace(/\s+/g, "-").toLowerCase()}-page-${pageNumber}.png`)
-    toast.success("手帐页已导出。")
+    if (!canvasRef.current || isExporting) return
+    if (!fabricRef.current?.isReadyForExport() || !canvasPage?.id || canvasRenderState.pageId !== canvasPage.id || canvasRenderState.loading || !canvasRenderState.complete || canvasRenderState.hasErrors) {
+      toast.error("画布资源尚未完整加载，请重试后再导出。")
+      return
+    }
+    setIsExporting(true)
+    try {
+      // Let the pressed state paint before export starts its expensive
+      // canvas composition. On a phone this makes a long export feel
+      // intentional instead of like a button that ignored the tap.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      if (!fabricRef.current?.isReadyForExport()) throw new Error("画布资源仍在加载，请稍后重试。")
+      const fabricCanvas = canvasRef.current.querySelector<HTMLCanvasElement>(".lower-canvas")
+      if (!fabricCanvas) throw new Error("画布尚未准备好，请稍后重试。")
+      const width = canvasRef.current.clientWidth
+      const height = canvasRef.current.clientHeight
+      if (!width || !height) throw new Error("画布尺寸无效，请稍后重试。")
+      // Export the Fabric lower canvas directly. html2canvas cannot parse the
+      // browser-computed `lab()` values produced by modern Color 4 CSS, while
+      // Fabric already owns all of the page's editable artwork.
+      const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
+      const exportCanvas = window.document.createElement("canvas")
+      exportCanvas.width = Math.round(width * scale)
+      exportCanvas.height = Math.round(height * scale)
+      const context = exportCanvas.getContext("2d")
+      if (!context) throw new Error("浏览器无法生成导出图片。")
+      context.scale(scale, scale)
+      drawJournalPaper(context, width, height, activeJournal.paper)
+      context.drawImage(fabricCanvas, 0, 0, width, height)
+      const blob = await new Promise<Blob>((resolve, reject) => exportCanvas.toBlob((result) => result ? resolve(result) : reject(new Error("无法生成 PNG 文件。")), "image/png"))
+      downloadBlob(blob, `${activeJournal.title.replace(/\s+/g, "-").toLowerCase()}-page-${pageNumber}.png`)
+      toast.success("已开始下载 PNG。")
+    } catch (cause) {
+      toast.error(cause instanceof Error ? `导出失败：${cause.message}` : "导出失败，请重试。")
+    } finally {
+      setIsExporting(false)
+    }
   }
 
-  function beginDrag(event: React.PointerEvent<HTMLElement>, placement: Placement): void {
-    if (!canvasRef.current) return
-    event.preventDefault()
-    setSelectedId(placement.id)
-    const target = event.currentTarget
-    const startX = event.clientX
-    const startY = event.clientY
-    const pointerId = event.pointerId
-    target.setPointerCapture(pointerId)
-    const move = (moveEvent: PointerEvent) => {
-      target.style.left = `${placement.left + moveEvent.clientX - startX}px`
-      target.style.top = `${placement.top + moveEvent.clientY - startY}px`
-    }
-    const end = (endEvent: PointerEvent) => {
-      target.removeEventListener("pointermove", move)
-      target.removeEventListener("pointerup", end)
-      target.removeEventListener("pointercancel", end)
-      const canvas = canvasRef.current
-      if (!canvas || !page) return
-      const maxLeft = Math.max(0, canvas.clientWidth - target.offsetWidth)
-      const maxTop = Math.max(0, canvas.clientHeight - target.offsetHeight)
-      const left = Math.min(maxLeft, Math.max(0, placement.left + endEvent.clientX - startX))
-      const top = Math.min(maxTop, Math.max(0, placement.top + endEvent.clientY - startY))
-      void commitPlacements(page.placements.map((item) => item.id === placement.id ? { ...item, left, top } : item))
-    }
-    target.addEventListener("pointermove", move)
-    target.addEventListener("pointerup", end)
-    target.addEventListener("pointercancel", end)
-  }
-
-  const historyIndex = page?.history.index ?? 0
-  const visibleDots = Array.from({ length: activeJournal.pages }, (_, index) => index + 1).slice(Math.max(0, pageNumber - 3), Math.max(5, pageNumber + 2))
+  const historyIndex = canvasPage?.history.index ?? 0
+  const historyLength = canvasPage?.history.entries.length ?? 1
+  const objectToolbarStyle = selectedAnchor ? {
+    "--object-toolbar-x": `${selectedAnchor.x}px`,
+    "--object-toolbar-y": `${selectedAnchor.y}px`,
+  } as CSSProperties : undefined
 
   return (
-    <section className="journal-editor" aria-labelledby="journal-title">
+    <section className="journal-editor" aria-label="Journal editor">
       <header className="topbar detail-topbar">
         <button className="round-icon" aria-label="Back to my journals" onClick={() => void navigate("/journals")}><ArrowLeft /></button>
         <p className="wordmark">memento</p>
-        <button className="round-icon" aria-label="Export this page" onClick={() => void exportPage()}><Download /></button>
+        <button className="round-icon" aria-label="Export this page" aria-busy={isExporting} disabled={isExporting || canvasRenderState.loading || !canvasRenderState.complete || canvasRenderState.hasErrors} onClick={() => void exportPage()}>
+          {isExporting ? <Loader2 className="is-spinning" /> : <Download />}
+        </button>
       </header>
-      <div className="journal-intro">
-        <p className="eyebrow journal-meta"><span>{activeJournal.year}</span><span id="saveStatus">saved on this device</span></p>
-        <h1 id="journal-title">{activeJournal.title}</h1>
-        <p>page {pageNumber} of {activeJournal.pages}</p>
-      </div>
 
-      <section ref={canvasRef} className={cn("journal-canvas", activeJournal.paper)} aria-label="Journal canvas" onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null) }}>
-        <div className="paper-label"><span>MEM</span><span>{String(pageNumber).padStart(2, "0")}</span><span>{new Date().getFullYear()}</span></div>
-        <p className="canvas-line canvas-line-one">{page?.words.headline}</p>
-        <p className="canvas-line canvas-line-two">{page?.words.note}</p>
-        <div id="canvasStickers" className="canvas-stickers">
-          {page?.placements.map((placement) => {
-            const sticker = stickerById.get(stickerIdFromPlacement(placement.id))
-            if (!sticker) return null
-            const selected = selectedId === placement.id
-            return (
-              <div
-                key={placement.id}
-                className={cn("canvas-sticker", selected && "is-selected")}
-                style={{ left: placement.left, top: placement.top, zIndex: placement.zIndex, transform: `rotate(${placement.angle}deg) scale(${placement.scale})` }}
-                role="button"
-                tabIndex={0}
-                aria-label={`Move ${sticker.name}`}
-                onPointerDown={(event) => beginDrag(event, placement)}
-                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelectedId(placement.id) }}
-              >
-                <StickerImage sticker={sticker} />
-                {selected ? (
-                  <span className="sticker-toolbar" onPointerDown={(event) => event.stopPropagation()}>
-                    <button aria-label="Delete sticker" onClick={() => void commitPlacements(page.placements.filter((item) => item.id !== placement.id))}><Trash2 /></button>
-                    <button aria-label="Rotate sticker" onClick={() => void updateSelected({ angle: placement.angle + 15 })}><RotateCw /></button>
-                    <button aria-label="Resize sticker" onClick={() => void updateSelected({ scale: Math.min(2.2, placement.scale + 0.15) })}><Plus /></button>
-                    <button aria-label="Make sticker smaller" onClick={() => void updateSelected({ scale: Math.max(0.35, placement.scale - 0.15) })}><Minus /></button>
-                    <button aria-label="Send sticker backward" onClick={() => void updateSelected({ zIndex: Math.max(0, placement.zIndex - 1) })}><ArrowDown /></button>
-                    <button aria-label="Bring sticker forward" onClick={() => void updateSelected({ zIndex: Math.max(...page.placements.map((item) => item.zIndex)) + 1 })}><ArrowUp /></button>
-                  </span>
-                ) : null}
+      <section ref={canvasRef} className={cn("journal-canvas", "fabric-paper", activeJournal.paper)} role="region" aria-label="Journal canvas">
+        <FabricJournalCanvas
+          ref={fabricRef}
+          pageId={pageId}
+          document={document}
+          stickers={snapshot.stickers}
+          assetUrls={assetUrls}
+          readOnly={!migrated}
+          acknowledgedOperation={acknowledgedOperation}
+          nextOperation={(id, documentKey) => canvasWriteQueueRef.current.next(id, "edit", documentKey)}
+          onCommit={commitCanvas}
+          onRenderStateChange={handleCanvasRenderStateChange}
+          onSelectedIdChange={setSelectedId}
+          onSelectedObjectChange={handleSelectedObjectChange}
+          onSelectedAnchorChange={setSelectedAnchor}
+        />
+        {selectedId && selectedAnchor ? (
+          <div className="canvas-object-actions" aria-label="Selected object actions" data-placement={selectedAnchor.placement} style={objectToolbarStyle}>
+            {selectedTextColor ? (
+              <div className="canvas-text-colors" role="group" aria-label="Text color">
+                {CANVAS_TEXT_COLORS.map((color) => (
+                  <Button
+                    key={color}
+                    variant="ghost"
+                    size="icon-xs"
+                    className={cn("canvas-text-color", selectedTextColor.toLowerCase() === color.toLowerCase() && "is-selected")}
+                    aria-label={`Set text color to ${color}`}
+                    aria-pressed={selectedTextColor.toLowerCase() === color.toLowerCase()}
+                    style={{ backgroundColor: color }}
+                    onClick={() => fabricRef.current?.setSelectedTextColor(color)}
+                  />
+                ))}
               </div>
-            )
-          })}
-        </div>
-        <p className={cn("canvas-hint", selectedId && "is-hidden")}>tap a sticker to move, turn or resize it</p>
-        <span className="masking-tape tape-one" aria-hidden="true" />
-        <span className="masking-tape tape-two" aria-hidden="true" />
+            ) : null}
+            {selectedTextFont ? (
+              <Popover open={fontPickerOpen} onOpenChange={setFontPickerOpen}>
+                <PopoverTrigger asChild><Button variant="ghost" size="icon" className="canvas-font-trigger" aria-label="Change text style" title="文字风格"><Type /></Button></PopoverTrigger>
+                <PopoverContent side="bottom" sideOffset={10} className="canvas-font-picker" aria-label="Choose text style">
+                  <p>文字风格</p>
+                  <div role="group" aria-label="Text style options">
+                    {CANVAS_TEXT_FONTS.map((font) => (
+                      <Button
+                        key={font.id}
+                        type="button"
+                        variant="ghost"
+                        className={cn("canvas-font-option", selectedTextFont === font.id && "is-selected")}
+                        aria-label={`Use ${font.label} text style`}
+                        aria-pressed={selectedTextFont === font.id}
+                        onClick={() => {
+                          fabricRef.current?.setSelectedTextFont(font.id)
+                          setFontPickerOpen(false)
+                        }}
+                      >
+                        <span style={{ fontFamily: canvasTextFontFamily(font.id) }}>{font.label}</span>
+                        <small>{font.description}</small>
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+            {!selectedTextColor ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Send selected object backward" onClick={() => fabricRef.current?.sendSelectedBackward()}><ArrowDown /></Button></TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8}>下移一层</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Bring selected object forward" onClick={() => fabricRef.current?.bringSelectedForward()}><ArrowUp /></Button></TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8}>上移一层</TooltipContent>
+                </Tooltip>
+              </>
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger asChild><Button variant="ghost" size="icon" className="canvas-object-delete" aria-label="Delete selected object" onClick={() => fabricRef.current?.deleteSelected()}><Trash2 /></Button></TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>删除</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null}
       </section>
 
-      <div className="page-controls">
-        <button aria-label="Undo" disabled={historyIndex <= 0} onClick={() => void undoRedo(-1)}><Undo2 /></button>
-        <button aria-label="Redo" disabled={!page || historyIndex >= page.history.entries.length - 1} onClick={() => void undoRedo(1)}><Redo2 /></button>
-        <button aria-label="Previous page" disabled={pageNumber === 1} onClick={() => void changePage(pageNumber - 1)}>←</button>
-        <div className="page-dots" aria-label="Journal pages">
-          {visibleDots.map((number) => <button key={number} className={number === pageNumber ? "is-current" : ""} aria-label={`Open page ${number}`} onClick={() => void changePage(number)} />)}
+      <div className="page-controls" aria-label="Journal editor controls">
+        <div className="page-edit-groups" aria-label="Edit actions">
+          <div className="page-edit-actions" aria-label="History actions">
+            <Tooltip>
+              <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Undo" disabled={!migrated || historyIndex <= 0} onClick={() => void undoRedo(-1)}><Undo2 /></Button></TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>撤销</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Redo" disabled={!migrated || historyIndex >= historyLength - 1} onClick={() => void undoRedo(1)}><Redo2 /></Button></TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>重做</TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="page-edit-actions" aria-label="Create text or tape">
+            <Tooltip>
+              <TooltipTrigger asChild><Button variant="ghost" size="icon" className="canvas-text-button" aria-label="Add text" disabled={!migrated} onClick={() => fabricRef.current?.addText()}><Type /></Button></TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>添加文字</TooltipContent>
+            </Tooltip>
+            <Popover open={tapePickerOpen} onOpenChange={setTapePickerOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild><Button variant="ghost" size="icon" className="canvas-tape-button" aria-label="Add tape" disabled={!migrated}><PanelTop /></Button></PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={8}>添加胶带</TooltipContent>
+              </Tooltip>
+              <PopoverContent side="top" sideOffset={10} className="canvas-tape-picker" aria-label="Choose tape color">
+                <p>胶带颜色</p>
+                <div role="group" aria-label="Tape color options">
+                  {CANVAS_TAPE_COLORS.map((color) => (
+                    <Button
+                      key={color}
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="canvas-tape-color"
+                      aria-label={`Add tape in ${color}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => {
+                        fabricRef.current?.addTape(color)
+                        setTapePickerOpen(false)
+                      }}
+                    />
+                  ))}
+                </div>
+                <small>拖动两端调节长度</small>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-        <button aria-label="Next page" disabled={pageNumber === activeJournal.pages} onClick={() => void changePage(pageNumber + 1)}>→</button>
-        <button className="new-page-button" onClick={() => void addPage()}>+ page</button>
+        <nav className="page-navigator" aria-label="Journal pages">
+          <Tooltip>
+            <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Previous page" disabled={pageNumber === 1} onClick={() => void changePage(pageNumber - 1)}><ChevronLeft /></Button></TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>上一页</TooltipContent>
+          </Tooltip>
+          <span aria-live="polite">{pageNumber} / {activeJournal.pages}</span>
+          <Tooltip>
+            <TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label="Next page" disabled={pageNumber === activeJournal.pages} onClick={() => void changePage(pageNumber + 1)}><ChevronRight /></Button></TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>下一页</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild><Button variant="ghost" size="icon" className="new-page-button" aria-label="Add page" onClick={() => void addPage()}><Plus /></Button></TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>新增页面</TooltipContent>
+          </Tooltip>
+        </nav>
       </div>
 
+      {!migrated ? <p className="canvas-migration-note">离线数据将在下一次成功同步后升级；此时仅可查看。</p> : null}
       <section className="canvas-sticker-dock" aria-label="Stickers for this page">
-        <div className="dock-label"><span>stickers</span><button onClick={openWords}>edit words</button></div>
         <div className="canvas-sticker-scroll">
           {snapshot.stickers.map((sticker) => (
-            <button key={sticker.id} className="dock-sticker" aria-label={`Add ${sticker.name} to this page`} onClick={() => void addSticker(sticker.id)}><StickerImage sticker={sticker} /></button>
+            <button key={sticker.id} className="dock-sticker" disabled={!migrated} aria-label={`Add ${sticker.name} to this page`} onClick={() => fabricRef.current?.addSticker(sticker.id)}><StickerImage sticker={sticker} /></button>
           ))}
         </div>
       </section>
-
-      <Sheet open={wordsOpen} onOpenChange={setWordsOpen}>
-        <SheetContent side="bottom" className="memento-sheet">
-          <SheetHeader>
-            <SheetDescription>Give the page a voice</SheetDescription>
-            <SheetTitle>Edit page words</SheetTitle>
-          </SheetHeader>
-          <div className="form-stack">
-            <Label htmlFor="page-headline">Main line</Label>
-            <Input id="page-headline" value={headline} maxLength={80} placeholder="soft morning, still warm." onChange={(event) => setHeadline(event.target.value)} />
-            <Label htmlFor="page-note">Little note</Label>
-            <Input id="page-note" value={note} maxLength={90} placeholder="save what made you smile" onChange={(event) => setNote(event.target.value)} />
-          </div>
-          <div className="word-actions">
-            <Button variant="outline" onClick={() => { setHeadline(""); setNote("") }}>clear words</Button>
-            <Button onClick={() => void saveWords()}>Keep these words <span>→</span></Button>
-          </div>
-        </SheetContent>
-      </Sheet>
     </section>
   )
 }

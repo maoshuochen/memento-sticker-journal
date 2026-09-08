@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import type { StickerFinish } from "@/domain/model"
 
@@ -31,11 +31,17 @@ function loadStickerForge(): Promise<void> {
 
 function options(source: string, finish: StickerFinish, edgeThickness: number): Record<string, unknown> {
   const lifted = finish === "edge-lift"
+  // Sticker Forge renders this preview at a larger scale than the editor.
+  // Keep the same setting relationship, but give the cut edge enough pixels
+  // to read as a real white sticker border in the detail sheet.
+  const previewOutlineWidth = Math.max(6, Math.round(edgeThickness * 2))
   return {
-    source: { type: "image", src: source, padding: 96, textureMaxEdge: 1024 },
-    outline: { width: Math.max(3, edgeThickness * 2), color: "#fffdf7" },
+    // Keep a modest safety margin for the peel effect without surrounding the
+    // sticker with so much transparent canvas that it looks undersized.
+    source: { type: "image", src: source, padding: 42, textureMaxEdge: 1024 },
+    outline: { width: previewOutlineWidth, color: "#fffdf7" },
     edge: { width: lifted ? 8 : 5, strength: 0.72 },
-    shadow: { color: "#403731", opacity: 0.22, blur: lifted ? 13 : 8, distance: lifted ? 9 : 5, angle: 42 },
+    shadow: { color: "#403731", opacity: 0.2, blur: lifted ? 4 : 3, distance: lifted ? 5 : 3, angle: 42 },
     peel: { radius: 0.13, stiffness: 0.72, grabWidth: 26, maxAngle: 3.2, release: "reset", residue: lifted, surfaceShadow: true },
     back: { color: "#f2eadf", gloss: 0.46, roughness: 0.45 },
     material: { type: "original", intensity: 0.28, scale: 1 },
@@ -82,7 +88,11 @@ export function PeelPreview({ source, finish, edgeThickness }: { source: string;
   return (
     <div className="peel-preview-wrap">
       <div ref={host} className="peel-preview-host">
-        {fallback ? <img src={source} alt="Sticker preview" /> : null}
+        {fallback ? (
+          <span className={`memento-sticker cutout ${finish} peel-preview-fallback`} style={{ "--edge": `${edgeThickness}px`, "--sticker-outline-filter": `url("#memento-sticker-outline-${Math.max(1, Math.min(10, Math.round(edgeThickness)))})` } as CSSProperties}>
+            <img src={source} alt="Sticker preview" />
+          </span>
+        ) : null}
       </div>
       <p className="peel-hint">{hint}</p>
     </div>

@@ -4,6 +4,33 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-08-07",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "secrets": {
+    "required": [
+      "ALIBABA_CLOUD_ACCESS_KEY_ID",
+      "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
+      "APP_SECRET",
+      "DASHSCOPE_API_KEY"
+    ]
+  },
+  "vars": {
+    "BAILIAN_BASE_URL": "https://llm-gbfhvg0b4hj53emn.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+  },
+  "d1_databases": [
+    {
+      "binding": "MEMENTO_DB",
+      "database_name": "memento-journal",
+      "database_id": "645ac382-5297-417d-a3eb-7353c699bcac",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEMENTO_ASSETS",
+      "bucket_name": "memento-journal-assets"
+    }
+  ],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
@@ -13,7 +40,15 @@
       "name": "CUTOUT_RATE_LIMITER",
       "namespace_id": "20260807",
       "simple": {
-        "limit": 8,
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "20260809",
+      "simple": {
+        "limit": 10,
         "period": 60
       }
     }

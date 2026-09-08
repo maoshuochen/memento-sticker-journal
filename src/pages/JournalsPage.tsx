@@ -1,22 +1,17 @@
-import { ArrowLeft, Plus, Shuffle } from "lucide-react"
+import { CircleUserRound, Plus } from "lucide-react"
 import { useState } from "react"
-import { useNavigate } from "react-router"
+import { useNavigate, useOutletContext } from "react-router"
 import { toast } from "sonner"
 
 import { useAppData } from "@/app/AppDataProvider"
+import type { MementoOutletContext } from "@/app/MementoLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import type { JournalCover, JournalPaper } from "@/domain/model"
+import { emptyCanvasDocument } from "@/domain/editor"
 import { cn } from "@/lib/utils"
-
-const prompts = [
-  "What felt quietly good today?",
-  "Keep one color from this week.",
-  "A small thing worth remembering.",
-  "What did the afternoon sound like?",
-]
 
 const covers: Array<{ id: JournalCover; label: string }> = [
   { id: "cover-blue", label: "Mist blue" },
@@ -36,9 +31,9 @@ const papers: Array<{ id: JournalPaper; label: string }> = [
 
 export function JournalsPage() {
   const navigate = useNavigate()
+  const { openAccount } = useOutletContext<MementoOutletContext>()
   const { snapshot, repository } = useAppData()
   const [createOpen, setCreateOpen] = useState(false)
-  const [promptIndex, setPromptIndex] = useState(0)
   const [title, setTitle] = useState("")
   const [cover, setCover] = useState<JournalCover>("cover-blue")
   const [paper, setPaper] = useState<JournalPaper>("paper-grid")
@@ -66,9 +61,8 @@ export function JournalsPage() {
       updatedAt: timestamp,
       journalId: id,
       pageNumber: 1,
-      words: { headline: "", note: "" },
-      placements: [],
-      history: { entries: [[]], index: 0 },
+      canvasDocument: emptyCanvasDocument(),
+      history: { entries: [emptyCanvasDocument()], index: 0 },
     })
     setCreateOpen(false)
     toast.success(`${resolvedTitle} is ready.`)
@@ -78,7 +72,7 @@ export function JournalsPage() {
   return (
     <section className="screen journal-home-screen" aria-labelledby="journals-title">
       <header className="topbar">
-        <button className="round-icon" aria-label="Open sticker library" onClick={() => void navigate("/")}><ArrowLeft /></button>
+        <button className="round-icon" aria-label="Open account and settings" onClick={openAccount}><CircleUserRound /></button>
         <p className="wordmark">memento</p>
         <button className="round-icon" aria-label="Create a journal" onClick={() => setCreateOpen(true)}><Plus /></button>
       </header>
@@ -88,12 +82,6 @@ export function JournalsPage() {
         <h1 id="journals-title">My journals</h1>
         <p>Each little book holds a different season.</p>
       </div>
-
-      <aside className="prompt-card">
-        <p className="eyebrow">A gentle place to begin</p>
-        <p>{prompts[promptIndex]}</p>
-        <button aria-label="Show another journal prompt" onClick={() => setPromptIndex((value) => (value + 1) % prompts.length)}><Shuffle /></button>
-      </aside>
 
       <section className="journal-books" aria-label="Your journals">
         {snapshot.journals.map((journal) => (

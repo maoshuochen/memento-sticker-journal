@@ -7,7 +7,9 @@ dist
 coverage
 playwright-report
 test-results
+.playwright-cli
 *.tsbuildinfo
+*.cpuprofile
 .env
 .env.local
 output/playwright/
