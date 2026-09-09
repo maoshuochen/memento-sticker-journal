@@ -10,6 +10,7 @@ import { TAPE_EMOJI_ENTRIES, TAPE_ICON_BY_ID, TAPE_ICON_ENTRIES, TAPE_PATTERN_CA
 import type { CanvasTapePattern, CanvasTapeStyle } from "@/domain/model"
 
 type TapePickerTab = "emoji" | "icon"
+type TapePickerSelectionTab = "solid" | TapePickerTab
 
 export interface TapePatternPickerProps {
   open: boolean
@@ -90,6 +91,7 @@ function PickerContent({
   mode,
   draft,
   activeTab,
+  selectedTab,
   query,
   category,
   recent,
@@ -97,6 +99,7 @@ function PickerContent({
   searchRef,
   setDraft,
   setActiveTab,
+  setSelectedTab,
   setQuery,
   setCategory,
   setIconColor,
@@ -108,6 +111,7 @@ function PickerContent({
   mode: "add" | "edit"
   draft: CanvasTapeStyle
   activeTab: TapePickerTab
+  selectedTab: TapePickerSelectionTab
   query: string
   category: TapePatternCategory
   recent: CanvasTapePattern[]
@@ -115,6 +119,7 @@ function PickerContent({
   searchRef: React.RefObject<HTMLInputElement | null>
   setDraft: React.Dispatch<React.SetStateAction<CanvasTapeStyle>>
   setActiveTab(tab: TapePickerTab): void
+  setSelectedTab(tab: TapePickerSelectionTab): void
   setQuery(query: string): void
   setCategory(category: TapePatternCategory): void
   setIconColor(color: string): void
@@ -134,7 +139,6 @@ function PickerContent({
     return TAPE_ICON_ENTRIES.filter((entry) => (category === "all" || entry.category === category) && containsQuery(entry.label, entry.keywords, normalizedQuery))
   }, [activeTab, category, normalizedQuery])
   const recentEntries = recent.filter((pattern) => pattern.kind === (activeTab === "emoji" ? "emoji" : "icon"))
-  const hasPattern = draft.pattern !== undefined
   const activeIcon = draft.pattern?.kind === "icon" ? TAPE_ICON_BY_ID.get(draft.pattern.id) : undefined
 
   const focusItem = (index: number, count: number): void => {
@@ -148,12 +152,14 @@ function PickerContent({
     if (pattern.kind !== "emoji") return
     setDraft((current) => ({ color: current.color, pattern }))
     setActiveTab("emoji")
+    setSelectedTab("emoji")
     setFocusedIndex(index)
   }
   const chooseIcon = (pattern: CanvasTapePattern, index: number): void => {
     if (pattern.kind !== "icon") return
     setDraft((current) => ({ color: current.color, pattern: { ...pattern, color: iconColor } }))
     setActiveTab("icon")
+    setSelectedTab("icon")
     setIconColor(pattern.color)
     setFocusedIndex(index)
   }
@@ -172,15 +178,9 @@ function PickerContent({
 
   return (
     <div className="tape-pattern-picker" data-mode={mode}>
-      <div className="tape-pattern-picker-heading">
-        <div>
-          <p className="tape-pattern-picker-kicker">{mode === "edit" ? "编辑胶带" : "添加胶带"}</p>
-          <h2>胶带</h2>
-        </div>
-        <div className="tape-pattern-live-preview" role="img" style={{ backgroundColor: draft.color }} aria-label="Tape preview">
-          {Array.from({ length: 7 }, (_, index) => <span key={index} className="tape-pattern-preview-item"><PatternGlyph pattern={draft.pattern ?? { kind: "emoji", value: "" }} /></span>)}
-          {!draft.pattern ? <span className="tape-pattern-preview-empty" aria-hidden="true" /> : null}
-        </div>
+      <div className="tape-pattern-live-preview" role="img" style={{ backgroundColor: draft.color }} aria-label="Tape preview">
+        {Array.from({ length: 7 }, (_, index) => <span key={index} className="tape-pattern-preview-item"><PatternGlyph pattern={draft.pattern ?? { kind: "emoji", value: "" }} /></span>)}
+        {!draft.pattern ? <span className="tape-pattern-preview-empty" aria-hidden="true" /> : null}
       </div>
 
       <div className="tape-pattern-colors" aria-label="Tape background colors">
@@ -188,9 +188,9 @@ function PickerContent({
       </div>
 
       <div className="tape-pattern-tabs" role="tablist" aria-label="Tape pattern type">
-        <button type="button" role="tab" aria-selected={!hasPattern} className={!hasPattern ? "is-selected" : ""} onClick={() => setDraft((current) => ({ color: current.color }))}>纯色</button>
-        <button type="button" role="tab" aria-selected={activeTab === "emoji" && draft.pattern?.kind === "emoji"} className={activeTab === "emoji" && draft.pattern?.kind === "emoji" ? "is-selected" : ""} onClick={() => { setActiveTab("emoji"); setCategory("all") }}>Emoji</button>
-        <button type="button" role="tab" aria-selected={activeTab === "icon" && draft.pattern?.kind === "icon"} className={activeTab === "icon" && draft.pattern?.kind === "icon" ? "is-selected" : ""} onClick={() => { setActiveTab("icon"); setCategory("all") }}>Icons</button>
+        <button type="button" role="tab" aria-selected={selectedTab === "solid"} className={selectedTab === "solid" ? "is-selected" : ""} onClick={() => { setSelectedTab("solid"); setDraft((current) => ({ color: current.color })) }}>纯色</button>
+        <button type="button" role="tab" aria-selected={selectedTab === "emoji"} className={selectedTab === "emoji" ? "is-selected" : ""} onClick={() => { setSelectedTab("emoji"); setActiveTab("emoji"); setCategory("all") }}>Emoji</button>
+        <button type="button" role="tab" aria-selected={selectedTab === "icon"} className={selectedTab === "icon" ? "is-selected" : ""} onClick={() => { setSelectedTab("icon"); setActiveTab("icon"); setCategory("all") }}>Icons</button>
       </div>
 
       <div className="tape-pattern-search-wrap">
@@ -201,7 +201,7 @@ function PickerContent({
 
       {activeTab === "icon" ? <div className="tape-pattern-icon-colors" aria-label="Icon colors">
         {palette.map((color) => <button key={color} type="button" className={`tape-pattern-icon-color ${iconColor === color ? "is-selected" : ""}`} style={{ backgroundColor: color }} aria-label={`图标颜色 ${color}`} aria-pressed={iconColor === color} onClick={() => { markIconColorSelected(); setIconColor(color); setDraft((current) => current.pattern?.kind === "icon" ? { ...current, pattern: { ...current.pattern, color } } : current) }} />)}
-      </div> : <p className="tape-pattern-muted">Emoji 使用系统原生颜色</p>}
+      </div> : null}
 
       <div className="tape-pattern-categories" role="group" aria-label="Pattern categories">
         {visibleCategories.map((option) => <button key={option.id} type="button" className={category === option.id ? "is-selected" : ""} aria-pressed={category === option.id} onClick={() => { setCategory(option.id); setFocusedIndex(0) }}>{option.label}</button>)}
@@ -226,7 +226,7 @@ function PickerContent({
       </section>
 
       <div className="tape-pattern-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>取消</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>取消</Button>
         <Button type="button" onClick={confirm}>{mode === "edit" ? "完成" : "添加胶带"}</Button>
       </div>
 
@@ -240,6 +240,7 @@ export function TapePatternPicker({ open, onOpenChange, mode, initialStyle, acco
   const initial = React.useMemo(() => normalizeCanvasTapeStyle(initialStyle), [initialStyle])
   const [draft, setDraft] = React.useState<CanvasTapeStyle>(initial)
   const [activeTab, setActiveTab] = React.useState<TapePickerTab>(initial.pattern?.kind === "icon" ? "icon" : "emoji")
+  const [selectedTab, setSelectedTab] = React.useState<TapePickerSelectionTab>(initial.pattern?.kind ?? "solid")
   const [query, setQuery] = React.useState("")
   const [category, setCategory] = React.useState<TapePatternCategory>("all")
   const [recent, setRecent] = React.useState<CanvasTapePattern[]>(() => readRecentTapePatterns(accountId))
@@ -252,6 +253,7 @@ export function TapePatternPicker({ open, onOpenChange, mode, initialStyle, acco
     const next = normalizeCanvasTapeStyle(initialStyle)
     setDraft(next)
     setActiveTab(next.pattern?.kind === "icon" ? "icon" : "emoji")
+    setSelectedTab(next.pattern?.kind ?? "solid")
     setQuery("")
     setCategory("all")
     setRecent(readRecentTapePatterns(accountId))
@@ -289,7 +291,7 @@ export function TapePatternPicker({ open, onOpenChange, mode, initialStyle, acco
     iconColorTouchedRef.current = true
   }
 
-  const content = <PickerContent mode={mode} draft={draft} activeTab={activeTab} query={query} category={category} recent={recent} iconColor={iconColor} searchRef={searchRef} setDraft={setDraft} setActiveTab={setActiveTab} setQuery={setQuery} setCategory={setCategory} setIconColor={setIconColor} markIconColorSelected={markIconColorSelected} onBackgroundChange={onBackgroundChange} confirm={confirm} onCancel={() => onOpenChange(false)} />
+  const content = <PickerContent mode={mode} draft={draft} activeTab={activeTab} selectedTab={selectedTab} query={query} category={category} recent={recent} iconColor={iconColor} searchRef={searchRef} setDraft={setDraft} setActiveTab={setActiveTab} setSelectedTab={setSelectedTab} setQuery={setQuery} setCategory={setCategory} setIconColor={setIconColor} markIconColorSelected={markIconColorSelected} onBackgroundChange={onBackgroundChange} confirm={confirm} onCancel={() => onOpenChange(false)} />
 
   if (compact) {
     return <Sheet open={open} onOpenChange={handleOpenChange}>

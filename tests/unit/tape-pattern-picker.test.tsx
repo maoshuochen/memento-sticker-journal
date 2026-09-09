@@ -91,7 +91,10 @@ describe("TapePatternPicker", () => {
   it("supports icon color selection and roving keyboard navigation", async () => {
     render(<PickerHarness initialStyle={{ color: "#b8d0c0" }} />)
     fireEvent.click(screen.getByRole("button", { name: "打开选择器" }))
-    fireEvent.click(screen.getByRole("tab", { name: "Icons" }))
+    const iconTab = screen.getByRole("tab", { name: "Icons" })
+    fireEvent.click(iconTab)
+    expect(iconTab).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByRole("tab", { name: "纯色" })).toHaveAttribute("aria-selected", "false")
     expect(screen.getByLabelText("图标颜色 #2f5e4f")).toBeVisible()
     const grid = screen.getByRole("listbox", { name: "Icon 图案" })
     const first = within(grid).getAllByRole("option")[0]

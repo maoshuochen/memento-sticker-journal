@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Download, Loader2, PanelTop, Plus, Redo2, Trash2, Type, Undo2 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, Download, Loader2, Plus, Redo2, Trash2, Type, Undo2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SVGProps } from "react"
 import { Navigate, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
@@ -17,6 +17,15 @@ import { shouldApplyRecord } from "@/domain/syncProtocol"
 import { createCanvasWriteQueue, type CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { downloadBlob } from "@/lib/images"
 import { cn } from "@/lib/utils"
+
+function TapeStripIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m4 7 2 1-2 1.35 2 1.3L4 12l2 1.35L4 15l16 2-2-1.35 2-1.3-2-1.35 2-1.35-2-1.3L20 9Z" />
+      <path d="m7.5 10.15 9 1.1M7.5 13.6l9 1.1" opacity=".45" />
+    </svg>
+  )
+}
 
 function drawJournalPaper(
   context: CanvasRenderingContext2D,
@@ -388,7 +397,7 @@ export function JournalEditorPage() {
                 mode="edit"
                 initialStyle={selectedTapeStyle}
                 accountId={user?.id ?? "local"}
-                trigger={<Button variant="ghost" size="icon" aria-label="Change tape style" title="胶带样式"><PanelTop /></Button>}
+                trigger={<Button variant="ghost" size="icon" aria-label="Change tape style" title="胶带样式"><TapeStripIcon /></Button>}
                 onConfirm={(style) => fabricRef.current?.setSelectedTapeStyle(style)}
               />
             ) : null}
@@ -435,7 +444,7 @@ export function JournalEditorPage() {
               mode="add"
               initialStyle={{ color: DEFAULT_CANVAS_TAPE_COLOR }}
               accountId={user?.id ?? "local"}
-              trigger={<Button variant="ghost" size="icon" className="canvas-tape-button" aria-label="Add tape" disabled={!migrated}><PanelTop /></Button>}
+              trigger={<Button variant="ghost" size="icon" className="canvas-tape-button" aria-label="Add tape" disabled={!migrated}><TapeStripIcon /></Button>}
               onConfirm={(style) => fabricRef.current?.addTape(style)}
             />
           </div>

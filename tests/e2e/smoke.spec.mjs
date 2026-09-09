@@ -136,7 +136,11 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await expect.poll(async () => Number(await page.locator('#fabricJournalCanvas').getAttribute('data-tape-repeat-counts'))).toBeGreaterThan(initialRepeatCount);
 
   await page.getByRole('button', { name: 'Change tape style' }).click();
-  await page.getByRole('tab', { name: 'Icons' }).click();
+  const iconsTab = page.getByRole('tab', { name: 'Icons' });
+  await iconsTab.click();
+  await expect(iconsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '纯色' })).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByText('Emoji 使用系统原生颜色')).toHaveCount(0);
   await page.getByRole('option', { name: '星星' }).click();
   await page.getByRole('button', { name: '图标颜色 #3f5f7a' }).click();
   await page.getByRole('button', { name: '完成', exact: true }).click();
