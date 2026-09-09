@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { appendCanvasHistory, appendHistory, canvasDocumentFromPlacements, canvasTextFontFamily, canvasTextFontLoadDescriptor, moveCanvasHistory, moveHistory, normalizeAngle, pointerAngle, shortestAngleDelta } from "@/domain/editor"
 import { canvasDocumentSchema, type CanvasDocument, type Placement } from "@/domain/model"
+import { normalizeCanvasDocument } from "@/domain/canvasDocument"
 import { shouldApplyRemoteRecord } from "@/data/repository"
 
 const placement = (id: string): Placement => ({ id, left: 10, top: 20, angle: 0, scale: 1, zIndex: 1 })
@@ -80,6 +81,13 @@ describe("canvas document migration", () => {
     expect(canvasTextFontLoadDescriptor("yozai")).toBe('400 32px "Yozai"')
     expect(canvasTextFontFamily("serif")).toContain("Georgia")
     expect(canvasTextFontFamily("sans")).toContain("Geist Variable")
+  })
+
+  it("normalizes legacy text to regular weight and preserves selected weights", () => {
+    const legacy = canvasDocumentSchema.parse({ version: 1, objects: [{ id: "text-weight-1", kind: "text", text: "hello", x: .5, y: .5, width: .4, fontSize: .05, angle: 0, zIndex: 1 }] })
+    expect(normalizeCanvasDocument(legacy).objects[0]).toEqual(expect.objectContaining({ fontWeight: 400 }))
+    const weighted = canvasDocumentSchema.parse({ version: 1, objects: [{ ...legacy.objects[0], fontWeight: 700 }] })
+    expect(normalizeCanvasDocument(weighted).objects[0]).toEqual(expect.objectContaining({ fontWeight: 700 }))
   })
 })
 

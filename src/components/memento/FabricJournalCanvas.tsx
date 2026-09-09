@@ -1,8 +1,8 @@
 import { Canvas, Pattern, Rect, Shadow, Textbox, controlsUtils, type FabricObject } from "fabric"
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 
-import { canvasTapeStyleSchema, type CanvasDocument, type CanvasObject, type CanvasStickerObject, type CanvasTapeObject, type CanvasTapeStyle, type CanvasTextFont, type CanvasTextObject, type StickerRecord } from "@/domain/model"
-import { canvasTextFontFamily, canvasTextFontLoadDescriptor, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, nextCanvasZIndex } from "@/domain/editor"
+import { canvasTapeStyleSchema, canvasTextWeightSchema, type CanvasDocument, type CanvasObject, type CanvasStickerObject, type CanvasTapeObject, type CanvasTapeStyle, type CanvasTextFont, type CanvasTextObject, type CanvasTextWeight, type StickerRecord } from "@/domain/model"
+import { canvasTextFontFamily, canvasTextFontLoadDescriptor, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, DEFAULT_CANVAS_TEXT_WEIGHT, nextCanvasZIndex } from "@/domain/editor"
 import { canvasDocumentKey, normalizeCanvasDocument } from "@/domain/canvasDocument"
 import type { CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { fabricImageFromSource, STICKER_BASE_SIZE } from "@/lib/canvasImages"
@@ -30,6 +30,7 @@ export interface FabricJournalCanvasHandle {
   addText(): void;
   setSelectedTextColor(color: string): void;
   setSelectedTextFont(font: CanvasTextFont): void;
+  setSelectedTextWeight(weight: CanvasTextWeight): void;
   deleteSelected(): void;
   bringSelectedForward(): void;
   sendSelectedBackward(): void;
@@ -245,6 +246,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       text: textbox.text?.trim() || "write here",
       color: typeof textbox.fill === "string" ? textbox.fill : metadata.color ?? TEXT_COLOR,
       font: metadata.font ?? DEFAULT_CANVAS_TEXT_FONT,
+      fontWeight: typeof textbox.fontWeight === "number" ? canvasTextWeightSchema.catch(DEFAULT_CANVAS_TEXT_WEIGHT).parse(textbox.fontWeight) : metadata.fontWeight ?? DEFAULT_CANVAS_TEXT_WEIGHT,
       x: clamp(center.x / canvas.width, 0, 1),
       y: clamp(center.y / canvas.height, 0, 1),
       width: clamp(textbox.getScaledWidth() / canvas.width, 0.02, 0.9),
@@ -345,6 +347,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       width: normalizedObject.width * canvas.width,
       fontSize: normalizedObject.fontSize * Math.min(canvas.width, canvas.height),
       fontFamily: canvasTextFontFamily(normalizedObject.font),
+      fontWeight: normalizedObject.fontWeight ?? DEFAULT_CANVAS_TEXT_WEIGHT,
       fill: normalizedObject.color ?? TEXT_COLOR,
       angle: normalizedObject.angle,
       lockScalingFlip: true,
@@ -679,6 +682,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
         fontSize: 0.055,
         color: TEXT_COLOR,
         font: DEFAULT_CANVAS_TEXT_FONT,
+        fontWeight: DEFAULT_CANVAS_TEXT_WEIGHT,
         angle: 0,
         zIndex: nextCanvasZIndex(documentRef.current.objects),
       }
@@ -731,6 +735,21 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
         }).catch(() => undefined)
       }
     },
+    setSelectedTextWeight(weight: CanvasTextWeight) {
+      if (callbacksRef.current.readOnly || !canvasTextWeightSchema.safeParse(weight).success) return
+      const canvas = fabricCanvasRef.current
+      const selected = canvas?.getActiveObject() as RuntimeObject | undefined
+      if (!canvas || selected?.memento?.kind !== "text") return
+      const textbox = selected as Textbox
+      textbox.set({ fontWeight: weight })
+      selected.memento = { ...selected.memento, fontWeight: weight }
+      fitTextWidth(textbox, canvas)
+      textbox.initDimensions()
+      selected.setCoords()
+      emitDocument(canvas)
+      reportSelection(selected.memento.id, selected)
+      canvas.requestRenderAll()
+    },
     deleteSelected() {
       if (callbacksRef.current.readOnly) return
       const canvas = fabricCanvasRef.current
@@ -774,6 +793,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       data-tape-patterns={document.objects.filter((object): object is CanvasTapeObject => object.kind === "tape").map((object) => object.pattern?.kind === "emoji" ? `emoji:${object.pattern.value}` : object.pattern?.kind === "icon" ? `icon:${object.pattern.id}:${object.pattern.color}` : "solid").join(",")}
       data-tape-repeat-counts={document.objects.filter((object): object is CanvasTapeObject => object.kind === "tape").map((object) => tapePatternRepeatCount(object.width * size.width, object.height * size.height)).join(",")}
       data-text-fonts={document.objects.filter((object) => object.kind === "text").map((object) => object.font ?? DEFAULT_CANVAS_TEXT_FONT).join(",")}
+      data-text-weights={document.objects.filter((object) => object.kind === "text").map((object) => object.fontWeight ?? DEFAULT_CANVAS_TEXT_WEIGHT).join(",")}
     >
       <canvas ref={canvasElementRef} aria-label="Journal canvas" />
       {loadIssues.length ? (

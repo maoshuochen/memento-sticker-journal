@@ -88,6 +88,9 @@ test('journal edits persist through refresh and support history', async ({ page 
   await page.getByRole('button', { name: 'Change text style' }).click();
   await expect(page.getByLabel('Text style options')).toBeVisible();
   await page.getByRole('button', { name: 'Use 手绘 text style' }).click();
+  await page.getByRole('button', { name: '使用粗体字重' }).click();
+  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-text-weights', '700');
+  await page.keyboard.press('Escape');
   await expect(page.getByLabel('Text style options')).toBeHidden();
   await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-text-fonts', 'handwritten');
 
@@ -111,8 +114,19 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await page.getByRole('button', { name: 'Open Slow Sunday, 5 pages' }).click();
 
   await page.getByRole('button', { name: 'Add tape' }).click();
-  const picker = isMobile ? page.getByRole('dialog', { name: '选择胶带图案' }) : page.locator('.tape-pattern-popover');
+  const picker = isMobile ? page.getByRole('dialog', { name: '定制胶带' }) : page.locator('.tape-pattern-popover');
   await expect(picker).toBeVisible();
+  await expect(page.getByText('选一个重复图案，让手帐更有节奏。')).toHaveCount(0);
+  if (isMobile) {
+    const sheetBox = await picker.boundingBox();
+    const actionsBox = await picker.locator('.tape-pattern-actions').boundingBox();
+    expect(sheetBox).not.toBeNull();
+    expect(actionsBox).not.toBeNull();
+    expect(sheetBox.height).toBeGreaterThanOrEqual(540);
+    expect(sheetBox.y + sheetBox.height - actionsBox.y - actionsBox.height).toBeLessThanOrEqual(40);
+    await picker.locator('.tape-pattern-catalog').evaluate((catalog) => { catalog.scrollTop = catalog.scrollHeight; });
+    await expect(picker.locator('.tape-pattern-actions')).toBeVisible();
+  }
   const pickerA11y = await new AxeBuilder({ page }).include(isMobile ? '[role="dialog"]' : '.tape-pattern-popover').analyze();
   expect(pickerA11y.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
   await page.getByRole('option', { name: '草莓' }).click();
@@ -141,18 +155,20 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await expect(iconsTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: '纯色' })).toHaveAttribute('aria-selected', 'false');
   await expect(page.getByText('Emoji 使用系统原生颜色')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: '搜索胶带图案' })).toHaveCount(0);
+  await page.getByRole('button', { name: '面形' }).click();
   await page.getByRole('option', { name: '星星' }).click();
-  await page.getByRole('button', { name: '图标颜色 #3f5f7a' }).click();
+  await page.getByRole('button', { name: '图标颜色 #607f99' }).click();
   await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(picker).toBeHidden();
   await page.waitForTimeout(250);
-  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#3f5f7a');
+  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#607f99');
   const iconPixelCount = await page.locator('#fabricJournalCanvas .lower-canvas').evaluate((canvas) => {
     const context = canvas.getContext('2d');
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     let matches = 0;
     for (let index = 0; index < pixels.length; index += 4) {
-      if (Math.abs(pixels[index] - 63) < 18 && Math.abs(pixels[index + 1] - 95) < 18 && Math.abs(pixels[index + 2] - 122) < 18 && pixels[index + 3] > 180) matches += 1;
+      if (Math.abs(pixels[index] - 96) < 18 && Math.abs(pixels[index + 1] - 127) < 18 && Math.abs(pixels[index + 2] - 153) < 18 && pixels[index + 3] > 180) matches += 1;
     }
     return matches;
   });
@@ -161,9 +177,9 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'emoji:🍓');
   await page.getByRole('button', { name: 'Redo' }).click();
-  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#3f5f7a');
+  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#607f99');
   await page.reload();
-  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#3f5f7a');
+  await expect(page.locator('#fabricJournalCanvas')).toHaveAttribute('data-tape-patterns', 'icon:star:#607f99');
 
   const exportDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export this page' }).click();

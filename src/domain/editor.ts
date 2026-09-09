@@ -7,6 +7,13 @@ const LEGACY_STICKER_SIZE = 116
 
 export const DEFAULT_CANVAS_TEXT_COLOR = "#3d3028"
 export const DEFAULT_CANVAS_TEXT_FONT: CanvasTextFont = "serif"
+export const DEFAULT_CANVAS_TEXT_WEIGHT = 400 as const
+export const CANVAS_TEXT_WEIGHTS = [
+  { value: 400, label: "常规" },
+  { value: 500, label: "中等" },
+  { value: 600, label: "半粗" },
+  { value: 700, label: "粗体" },
+] as const
 export const CANVAS_TEXT_COLORS = [
   DEFAULT_CANVAS_TEXT_COLOR,
   "#9a6547",

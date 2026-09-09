@@ -399,31 +399,33 @@
 .canvas-text-color.is-selected { outline: 2px solid var(--foreground); outline-offset: 2px; }
 .canvas-text-color:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
 .canvas-font-trigger { margin-left: 1px; }
-.canvas-font-picker { width: 188px; gap: 7px; padding: 8px; border-color: oklch(1 0 0 / .72); border-radius: 15px; background: oklch(.982 .012 82 / .96); box-shadow: 0 10px 28px oklch(.2 .02 50 / .18), inset 0 1px oklch(1 0 0 / .8); }
+.canvas-font-picker { width: 208px; gap: 7px; padding: 8px; border-color: oklch(1 0 0 / .72); border-radius: 15px; background: oklch(.982 .012 82 / .96); box-shadow: 0 10px 28px oklch(.2 .02 50 / .18), inset 0 1px oklch(1 0 0 / .8); }
 .canvas-font-picker > p { margin: 1px 3px 0; color: var(--muted-ink); font-size: 9px; letter-spacing: .055em; text-transform: uppercase; }
-.canvas-font-picker > div { display: grid; gap: 2px; }
+.canvas-font-options { display: grid; gap: 2px; }
 .canvas-font-option { display: grid; width: 100%; min-height: 44px; grid-template-columns: minmax(0, 1fr) auto; justify-content: stretch; gap: 8px; padding: 6px 8px; border-radius: 10px; color: var(--foreground); text-align: left; }
 .canvas-font-option:hover,
 .canvas-font-option.is-selected { background: oklch(.91 .03 75 / .72); }
 .canvas-font-option > span { overflow: hidden; font-size: 17px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-font-option > small { align-self: end; color: var(--muted-ink); font-size: 9px; line-height: 1; white-space: nowrap; }
+.canvas-font-weights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 10px; background: oklch(.91 .018 78 / .65); }
+.canvas-font-weights button { width: auto; min-width: 0; height: 30px; padding: 0 4px; border-radius: 8px; font-size: 10px; }
+.canvas-font-weights button.is-selected { background: oklch(1 0 0 / .86); box-shadow: 0 1px 3px oklch(.3 .02 50 / .1); }
 .canvas-tape-picker { width: 194px; gap: 8px; padding: 9px; border-color: oklch(1 0 0 / .72); border-radius: 15px; background: oklch(.982 .012 82 / .96); box-shadow: 0 10px 28px oklch(.2 .02 50 / .18), inset 0 1px oklch(1 0 0 / .8); }
 .canvas-tape-picker > p { margin: 1px 3px 0; color: var(--muted-ink); font-size: 9px; letter-spacing: .055em; text-transform: uppercase; }
 .canvas-tape-picker > div { display: flex; gap: 7px; }
 .canvas-tape-picker > small { color: var(--muted-ink); font-size: 9px; }
 .canvas-tape-color { width: 28px !important; height: 28px !important; border: 2px solid #fffdf7 !important; border-radius: 7px !important; box-shadow: 0 0 0 1px oklch(.25 .025 50 / .17) !important; }
-.tape-pattern-popover { width: min(360px, calc(100vw - 24px)); max-height: min(78svh, 650px); gap: 12px; padding: 14px; overflow-y: auto; border: 1px solid oklch(1 0 0 / .76); border-radius: 22px; background: oklch(.982 .012 82 / .97); box-shadow: 0 14px 38px oklch(.2 .02 50 / .2), inset 0 1px oklch(1 0 0 / .8); }
-.tape-pattern-sheet { width: 100%; max-width: 430px; max-height: 68svh; gap: 12px; margin-inline: auto; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); overflow-y: auto; border-radius: 26px 26px 0 0; background: oklch(.982 .012 82 / .98); }
+.tape-pattern-popover { width: min(360px, calc(100vw - 24px)); max-height: min(82svh, 690px); gap: 12px; padding: 14px; overflow: hidden; border: 1px solid oklch(1 0 0 / .76); border-radius: 22px; background: oklch(.982 .012 82 / .97); box-shadow: 0 14px 38px oklch(.2 .02 50 / .2), inset 0 1px oklch(1 0 0 / .8); }
+.tape-pattern-sheet { width: 100%; max-width: 430px; height: min(78svh, 720px); max-height: 78svh; gap: 12px; margin-inline: auto; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); overflow: hidden; border-radius: 26px 26px 0 0; background: oklch(.982 .012 82 / .98); }
 .tape-pattern-sheet > [data-slot="sheet-close"] { top: 17px; right: 17px; }
 .tape-pattern-sheet [data-slot="sheet-header"] { padding: 0 36px 2px 0; }
 .tape-pattern-sheet [data-slot="sheet-title"] { font: 500 24px/.98 Georgia, serif; letter-spacing: -.045em; }
-.tape-pattern-sheet .tape-pattern-picker { padding-bottom: 2px; }
-.tape-pattern-picker { display: grid; min-width: 0; gap: 10px; color: var(--foreground); }
+.tape-pattern-sheet .tape-pattern-picker { min-height: 0; flex: 1; padding-bottom: 2px; }
+.tape-pattern-picker { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 10px; color: var(--foreground); }
 .tape-pattern-live-preview { display: flex; width: 100%; min-width: 0; height: 42px; align-items: center; justify-content: space-around; gap: 4px; overflow: hidden; padding: 0 9px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgb(75 57 47 / .14); }
 .tape-pattern-preview-item { display: grid; width: 25px; height: 30px; flex: 0 0 25px; place-items: center; color: #5b4332; }
 .tape-pattern-preview-item .tape-pattern-emoji { font-size: 20px; }
 .tape-pattern-preview-item .tape-pattern-icon { width: 20px; height: 20px; }
-.tape-pattern-preview-empty { display: block; width: 92%; height: 2px; border-radius: 2px; background: rgb(75 57 47 / .24); }
 .tape-pattern-colors, .tape-pattern-icon-colors { display: flex; align-items: center; gap: 7px; min-height: 28px; }
 .tape-pattern-color, .tape-pattern-icon-color { display: block; width: 27px; height: 27px; flex: 0 0 27px; padding: 0; border: 2px solid #fffdf7; border-radius: 8px; box-shadow: 0 0 0 1px oklch(.25 .025 50 / .2); cursor: pointer; }
 .tape-pattern-color:hover, .tape-pattern-icon-color:hover { transform: translateY(-1px); }
@@ -431,21 +433,23 @@
 .tape-pattern-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 12px; background: oklch(.91 .018 78 / .72); }
 .tape-pattern-tabs button { min-height: 32px; border: 0; border-radius: 9px; background: transparent; color: var(--muted-ink); font-size: 12px; cursor: pointer; }
 .tape-pattern-tabs button.is-selected { background: oklch(1 0 0 / .82); color: var(--foreground); box-shadow: 0 1px 4px oklch(.3 .02 50 / .12); }
-.tape-pattern-search-wrap { display: flex; min-height: 36px; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--border); border-radius: 11px; background: oklch(1 0 0 / .5); }
-.tape-pattern-search-wrap > span { color: var(--muted-ink); font-size: 21px; line-height: 1; transform: rotate(-15deg); }
-.tape-pattern-search-wrap input { min-width: 0; height: 32px; border: 0; background: transparent; box-shadow: none; font-size: 13px; }
-.tape-pattern-search-wrap > button { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; background: transparent; color: var(--muted-ink); font-size: 18px; }
+.tape-pattern-icon-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tape-pattern-icon-styles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; padding: 2px; border-radius: 9px; background: oklch(.91 .018 78 / .72); }
+.tape-pattern-icon-styles button { min-height: 25px; padding: 3px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted-ink); font-size: 10px; }
+.tape-pattern-icon-styles button.is-selected { background: oklch(1 0 0 / .84); color: var(--foreground); box-shadow: 0 1px 3px oklch(.3 .02 50 / .1); }
 .tape-pattern-icon-colors { justify-content: flex-end; min-height: 24px; }
 .tape-pattern-icon-color { width: 21px; height: 21px; flex-basis: 21px; border-radius: 50%; }
 .tape-pattern-muted, .tape-pattern-empty { margin: -3px 0 0; color: var(--muted-ink); font-size: 10px; }
 .tape-pattern-categories { display: flex; gap: 5px; min-height: 27px; overflow-x: auto; scrollbar-width: none; }
 .tape-pattern-categories button { flex: 0 0 auto; min-height: 27px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--muted-ink); font-size: 10px; }
 .tape-pattern-categories button.is-selected { border-color: var(--foreground); background: var(--foreground); color: var(--primary-foreground); }
+.tape-pattern-catalog { display: grid; min-height: 0; gap: 10px; overflow-y: auto; padding: 2px; }
+.tape-pattern-popover .tape-pattern-catalog { max-height: 310px; }
 .tape-pattern-recent, .tape-pattern-results { display: grid; gap: 6px; }
 .tape-pattern-recent h3, .tape-pattern-results h3 { margin: 0; font-size: 11px; font-weight: 600; }
 .tape-pattern-results-heading { display: flex; align-items: center; justify-content: space-between; }
 .tape-pattern-results-heading span { color: var(--muted-ink); font-size: 9px; }
-.tape-pattern-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; max-height: 210px; overflow-y: auto; padding: 2px; }
+.tape-pattern-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; padding: 2px; }
 .tape-pattern-grid-recent { grid-template-columns: repeat(6, minmax(0, 1fr)); max-height: none; }
 .tape-pattern-item { display: grid; min-width: 0; min-height: 38px; place-items: center; padding: 4px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--foreground); cursor: pointer; }
 .tape-pattern-item:hover, .tape-pattern-item:focus-visible, .tape-pattern-item.is-selected { border-color: oklch(.55 .08 55 / .42); background: oklch(.92 .04 75 / .72); outline: none; }
@@ -453,12 +457,11 @@
 .tape-pattern-emoji { display: inline-block; line-height: 1; }
 .tape-pattern-emoji-normal { font-size: 24px; }
 .tape-pattern-emoji-small { font-size: 20px; }
-.tape-pattern-actions { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.45fr); gap: 7px; padding-top: 2px; }
+.tape-pattern-actions { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, .8fr) minmax(0, 1.45fr); gap: 7px; margin-top: auto; padding-top: 2px; background: oklch(.982 .012 82 / .98); }
 .tape-pattern-actions > button { min-height: 38px; border-radius: 12px; }
 .tape-pattern-actions > button:first-child { border-color: oklch(.55 .035 58 / .45); background: oklch(1 0 0 / .6); color: var(--foreground); }
 .tape-pattern-actions > button:first-child:hover { background: oklch(.93 .02 75 / .9); }
 @media (max-width: 639px) {
-  .tape-pattern-grid { max-height: 25svh; }
   .tape-pattern-categories { margin-inline: -2px; padding-inline: 2px; }
 }
 @keyframes object-toolbar-arrives { from { opacity: 0; } to { opacity: 1; } }

@@ -11,8 +11,8 @@ import { TapePatternPicker } from "@/components/memento/TapePatternPicker"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { appendCanvasHistory, CANVAS_TEXT_COLORS, CANVAS_TEXT_FONTS, canvasDocumentFromPlacements, canvasTextFontFamily, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, emptyCanvasDocument, moveCanvasHistory } from "@/domain/editor"
-import { isCanvasJournalPage, type CanvasDocument, type CanvasJournalPageRecord, type CanvasObject, type CanvasTapeStyle, type CanvasTextFont } from "@/domain/model"
+import { appendCanvasHistory, CANVAS_TEXT_COLORS, CANVAS_TEXT_FONTS, CANVAS_TEXT_WEIGHTS, canvasDocumentFromPlacements, canvasTextFontFamily, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, DEFAULT_CANVAS_TEXT_WEIGHT, emptyCanvasDocument, moveCanvasHistory } from "@/domain/editor"
+import { isCanvasJournalPage, type CanvasDocument, type CanvasJournalPageRecord, type CanvasObject, type CanvasTapeStyle, type CanvasTextFont, type CanvasTextWeight } from "@/domain/model"
 import { shouldApplyRecord } from "@/domain/syncProtocol"
 import { createCanvasWriteQueue, type CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { downloadBlob } from "@/lib/images"
@@ -102,6 +102,7 @@ export function JournalEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedTextColor, setSelectedTextColor] = useState<string | null>(null)
   const [selectedTextFont, setSelectedTextFont] = useState<CanvasTextFont | null>(null)
+  const [selectedTextWeight, setSelectedTextWeight] = useState<CanvasTextWeight | null>(null)
   const [fontPickerOpen, setFontPickerOpen] = useState(false)
   const [tapePickerOpen, setTapePickerOpen] = useState(false)
   const [tapeStylePickerOpen, setTapeStylePickerOpen] = useState(false)
@@ -228,6 +229,7 @@ export function JournalEditorPage() {
     setSelectedId(null)
     setSelectedTextColor(null)
     setSelectedTextFont(null)
+    setSelectedTextWeight(null)
     setFontPickerOpen(false)
     setTapePickerOpen(false)
     setTapeStylePickerOpen(false)
@@ -240,6 +242,7 @@ export function JournalEditorPage() {
   function handleSelectedObjectChange(object: CanvasObject | null): void {
     setSelectedTextColor(object?.kind === "text" ? object.color ?? DEFAULT_CANVAS_TEXT_COLOR : null)
     setSelectedTextFont(object?.kind === "text" ? object.font ?? DEFAULT_CANVAS_TEXT_FONT : null)
+    setSelectedTextWeight(object?.kind === "text" ? object.fontWeight ?? DEFAULT_CANVAS_TEXT_WEIGHT : null)
     if (object?.kind !== "text") setFontPickerOpen(false)
     setSelectedTapeStyle(object?.kind === "tape" ? { color: object.color, pattern: object.pattern } : null)
     if (object?.kind !== "tape") setTapeStylePickerOpen(false)
@@ -264,6 +267,7 @@ export function JournalEditorPage() {
     setSelectedId(null)
     setSelectedTextColor(null)
     setSelectedTextFont(null)
+    setSelectedTextWeight(null)
     setSelectedTapeStyle(null)
     setFontPickerOpen(false)
     setTapePickerOpen(false)
@@ -368,7 +372,7 @@ export function JournalEditorPage() {
                 <PopoverTrigger asChild><Button variant="ghost" size="icon" className="canvas-font-trigger" aria-label="Change text style" title="文字风格"><Type /></Button></PopoverTrigger>
                 <PopoverContent side="bottom" sideOffset={10} className="canvas-font-picker" aria-label="Choose text style">
                   <p>文字风格</p>
-                  <div role="group" aria-label="Text style options">
+                  <div className="canvas-font-options" role="group" aria-label="Text style options">
                     {CANVAS_TEXT_FONTS.map((font) => (
                       <Button
                         key={font.id}
@@ -379,12 +383,26 @@ export function JournalEditorPage() {
                         aria-pressed={selectedTextFont === font.id}
                         onClick={() => {
                           fabricRef.current?.setSelectedTextFont(font.id)
-                          setFontPickerOpen(false)
                         }}
                       >
                         <span style={{ fontFamily: canvasTextFontFamily(font.id) }}>{font.label}</span>
                         <small>{font.description}</small>
                       </Button>
+                    ))}
+                  </div>
+                  <p>字重</p>
+                  <div className="canvas-font-weights" role="group" aria-label="Text weight options">
+                    {CANVAS_TEXT_WEIGHTS.map((weight) => (
+                      <Button
+                        key={weight.value}
+                        type="button"
+                        variant="ghost"
+                        className={cn(selectedTextWeight === weight.value && "is-selected")}
+                        aria-label={`使用${weight.label}字重`}
+                        aria-pressed={selectedTextWeight === weight.value}
+                        style={{ fontWeight: weight.value }}
+                        onClick={() => fabricRef.current?.setSelectedTextWeight(weight.value)}
+                      >{weight.label}</Button>
                     ))}
                   </div>
                 </PopoverContent>

@@ -21,21 +21,22 @@ describe("tape pattern model", () => {
 
   it("round trips emoji and icon patterns while rejecting invalid values", () => {
     const emoji = canvasTapePatternSchema.parse({ kind: "emoji", value: "👩‍💻" })
-    const icon = canvasTapePatternSchema.parse({ kind: "icon", id: "heart", color: "#5b4332" })
+    const icon = canvasTapePatternSchema.parse({ kind: "icon", id: "heart", color: "#765c49", style: "filled" })
     expect(emoji).toEqual({ kind: "emoji", value: "👩‍💻" })
-    expect(icon).toEqual({ kind: "icon", id: "heart", color: "#5b4332" })
+    expect(icon).toEqual({ kind: "icon", id: "heart", color: "#765c49", style: "filled" })
     expect(canvasTapePatternSchema.safeParse({ kind: "emoji", value: "ab" }).success).toBe(false)
     expect(canvasTapePatternSchema.safeParse({ kind: "emoji", value: "a" }).success).toBe(false)
     expect(canvasTapePatternSchema.safeParse({ kind: "icon", id: "not-an-icon", color: "#5b4332" }).success).toBe(false)
     expect(canvasTapePatternSchema.safeParse({ kind: "icon", id: "heart", color: "brown" }).success).toBe(false)
+    expect(canvasTapePatternSchema.safeParse({ kind: "icon", id: "heart", color: "#765c49", style: "duotone" }).success).toBe(false)
   })
 
   it("exposes the curated catalogue and background-aware icon defaults", () => {
     expect(TAPE_EMOJI_ENTRIES.length).toBeGreaterThanOrEqual(80)
     expect(TAPE_ICON_ENTRIES.length).toBe(40)
-    expect(defaultTapeIconColor("#b8d0c0")).toBe("#2f5e4f")
-    expect(defaultTapeIconColor("#ffffff")).toBe("#5b4332")
-    expect(normalizeCanvasTapeStyle({ color: "#e6b1c0", pattern: { kind: "icon", id: "heart", color: "#7a4350" } })).toEqual({ color: "#e6b1c0", pattern: { kind: "icon", id: "heart", color: "#7a4350" } })
+    expect(defaultTapeIconColor("#b8d0c0")).toBe("#4f7c6d")
+    expect(defaultTapeIconColor("#ffffff")).toBe("#765c49")
+    expect(normalizeCanvasTapeStyle({ color: "#e6b1c0", pattern: { kind: "icon", id: "heart", color: "#956573", style: "filled" } })).toEqual({ color: "#e6b1c0", pattern: { kind: "icon", id: "heart", color: "#956573", style: "filled" } })
   })
 })
 
@@ -73,19 +74,18 @@ describe("TapePatternPicker", () => {
     window.innerWidth = 1024
   })
 
-  it("searches an emoji, confirms once and restores focus", () => {
+  it("chooses an emoji, confirms once and restores focus without search", async () => {
     render(<PickerHarness />)
     const trigger = screen.getByRole("button", { name: "打开选择器" })
     trigger.focus()
     fireEvent.click(trigger)
-    const input = screen.getByRole("textbox", { name: "搜索胶带图案" })
-    fireEvent.change(input, { target: { value: "苹果" } })
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
     expect(screen.getByRole("option", { name: "苹果" })).toBeVisible()
     fireEvent.click(screen.getByRole("option", { name: "苹果" }))
     fireEvent.click(screen.getByRole("button", { name: "添加胶带" }))
     const confirmed = screen.getByTestId("confirmed")
     expect(confirmed).toHaveTextContent('"value":"🍎"')
-    expect(document.activeElement).toBe(trigger)
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
   })
 
   it("supports icon color selection and roving keyboard navigation", async () => {
@@ -95,7 +95,8 @@ describe("TapePatternPicker", () => {
     fireEvent.click(iconTab)
     expect(iconTab).toHaveAttribute("aria-selected", "true")
     expect(screen.getByRole("tab", { name: "纯色" })).toHaveAttribute("aria-selected", "false")
-    expect(screen.getByLabelText("图标颜色 #2f5e4f")).toBeVisible()
+    expect(screen.getByLabelText("图标颜色 #4f7c6d")).toBeVisible()
+    fireEvent.click(screen.getByRole("button", { name: "面形" }))
     const grid = screen.getByRole("listbox", { name: "Icon 图案" })
     const first = within(grid).getAllByRole("option")[0]
     first.focus()
@@ -104,7 +105,8 @@ describe("TapePatternPicker", () => {
     fireEvent.click(within(grid).getByRole("option", { name: "心" }))
     fireEvent.click(screen.getByRole("button", { name: "添加胶带" }))
     expect(screen.getByTestId("confirmed")).toHaveTextContent('"id":"heart"')
-    expect(screen.getByTestId("confirmed")).toHaveTextContent('"color":"#2f5e4f"')
+    expect(screen.getByTestId("confirmed")).toHaveTextContent('"color":"#4f7c6d"')
+    expect(screen.getByTestId("confirmed")).toHaveTextContent('"style":"filled"')
   })
 
   it("shows account recents and can clear a patterned tape to solid", () => {
@@ -133,16 +135,16 @@ describe("TapePatternPicker", () => {
     fireEvent.click(screen.getByRole("option", { name: "心" }))
     fireEvent.click(screen.getByRole("button", { name: "胶带底色 #b8d0c0" }))
     fireEvent.click(screen.getByRole("button", { name: "添加胶带" }))
-    expect(screen.getByTestId("confirmed")).toHaveTextContent('"color":"#2f5e4f"')
+    expect(screen.getByTestId("confirmed")).toHaveTextContent('"color":"#4f7c6d"')
 
     render(<PickerHarness />)
     fireEvent.click(screen.getAllByRole("button", { name: "打开选择器" })[1]!)
     fireEvent.click(screen.getByRole("tab", { name: "Icons" }))
     fireEvent.click(screen.getByRole("option", { name: "心" }))
-    fireEvent.click(screen.getByRole("button", { name: "图标颜色 #6c4c7f" }))
+    fireEvent.click(screen.getByRole("button", { name: "图标颜色 #856698" }))
     fireEvent.click(screen.getByRole("button", { name: "胶带底色 #b8d0c0" }))
     fireEvent.click(screen.getByRole("button", { name: "添加胶带" }))
-    expect(screen.getAllByTestId("confirmed")[1]).toHaveTextContent('"color":"#6c4c7f"')
+    expect(screen.getAllByTestId("confirmed")[1]).toHaveTextContent('"color":"#856698"')
   })
 
   it("switches to a compact sheet at phone width", () => {
@@ -150,6 +152,6 @@ describe("TapePatternPicker", () => {
     render(<PickerHarness />)
     fireEvent.click(screen.getByRole("button", { name: "打开选择器" }))
     expect(screen.getByRole("dialog")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "选择胶带图案" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "定制胶带" })).toBeInTheDocument()
   })
 })

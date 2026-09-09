@@ -9,12 +9,12 @@ export const TAPE_BACKGROUND_COLORS = [
 ] as const
 
 export const CANVAS_TAPE_ICON_COLORS = [
-  "#5b4332",
-  "#2f5e4f",
-  "#7a4350",
-  "#3f5f7a",
-  "#6e5b2d",
-  "#6c4c7f",
+  "#765c49",
+  "#4f7c6d",
+  "#956573",
+  "#607f99",
+  "#897443",
+  "#856698",
 ] as const
 
 export type TapePatternCategory = "all" | "people" | "nature" | "food" | "activity" | "travel" | "objects" | "symbols"
@@ -167,7 +167,7 @@ export function defaultTapeIconColor(background: string): string {
 }
 
 export function patternKey(pattern: CanvasTapePattern): string {
-  return pattern.kind === "emoji" ? `emoji:${pattern.value}` : `icon:${pattern.id}:${pattern.color.toLowerCase()}`
+  return pattern.kind === "emoji" ? `emoji:${pattern.value}` : `icon:${pattern.id}:${pattern.color.toLowerCase()}:${pattern.style ?? "outline"}`
 }
 
 const RECENT_LIMIT = 12

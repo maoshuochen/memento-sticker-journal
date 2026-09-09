@@ -73,6 +73,7 @@ export const canvasStickerObjectSchema = z.object({
 });
 
 export const canvasTextFontSchema = z.enum(["handwritten", "yozai", "serif", "sans"]);
+export const canvasTextWeightSchema = z.union([z.literal(400), z.literal(500), z.literal(600), z.literal(700)]);
 
 /**
  * Tape icons are deliberately a closed, small catalogue.  Persisting a
@@ -89,6 +90,7 @@ export const canvasTapeIconIds = [
 
 export const canvasTapeIconIdSchema = z.enum(canvasTapeIconIds);
 export const canvasTapeColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const canvasTapeIconStyleSchema = z.enum(["outline", "filled"]);
 
 function isSingleGrapheme(value: string): boolean {
   const isEmoji = /^(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u.test(value);
@@ -109,7 +111,7 @@ export const canvasTapeEmojiSchema = z.string()
 
 export const canvasTapePatternSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("emoji"), value: canvasTapeEmojiSchema }),
-  z.object({ kind: z.literal("icon"), id: canvasTapeIconIdSchema, color: canvasTapeColorSchema }),
+  z.object({ kind: z.literal("icon"), id: canvasTapeIconIdSchema, color: canvasTapeColorSchema, style: canvasTapeIconStyleSchema.optional() }),
 ]);
 
 export const canvasTapeStyleSchema = z.object({
@@ -147,6 +149,8 @@ export const canvasTextObjectSchema = z.object({
   // choices existed. Those records intentionally retain the original serif
   // appearance until the user changes their font.
   font: canvasTextFontSchema.optional(),
+  // Optional for documents created before text weight controls existed.
+  fontWeight: canvasTextWeightSchema.optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   // Text is a content-sized object rather than a fixed-width writing area.
@@ -222,7 +226,9 @@ export type PageHistory = z.infer<typeof pageHistorySchema>;
 export type CanvasStickerObject = z.infer<typeof canvasStickerObjectSchema>;
 export type CanvasTapeObject = z.infer<typeof canvasTapeObjectSchema>;
 export type CanvasTextFont = z.infer<typeof canvasTextFontSchema>;
+export type CanvasTextWeight = z.infer<typeof canvasTextWeightSchema>;
 export type CanvasTapeIconId = z.infer<typeof canvasTapeIconIdSchema>;
+export type CanvasTapeIconStyle = z.infer<typeof canvasTapeIconStyleSchema>;
 export type CanvasTapePattern = z.infer<typeof canvasTapePatternSchema>;
 export type CanvasTapeStyle = z.infer<typeof canvasTapeStyleSchema>;
 export type CanvasTextObject = z.infer<typeof canvasTextObjectSchema>;

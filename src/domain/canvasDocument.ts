@@ -1,5 +1,5 @@
 import type { CanvasDocument, CanvasObject, CanvasTapeObject } from "@/domain/model"
-import { DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT } from "@/domain/editor"
+import { DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, DEFAULT_CANVAS_TEXT_WEIGHT } from "@/domain/editor"
 
 /**
  * Canvas records can be produced by IndexedDB, sync responses, or Fabric's
@@ -42,6 +42,7 @@ export function normalizeCanvasDocument(document: CanvasDocument): CanvasDocumen
         text: object.text,
         color: object.color ?? DEFAULT_CANVAS_TEXT_COLOR,
         font: object.font ?? DEFAULT_CANVAS_TEXT_FONT,
+        fontWeight: object.fontWeight ?? DEFAULT_CANVAS_TEXT_WEIGHT,
         x: object.x,
         y: object.y,
         width: object.width,

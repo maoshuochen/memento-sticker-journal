@@ -11,7 +11,7 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
 }
 
-function drawIconNode(context: CanvasRenderingContext2D, node: TapeIconNode): void {
+function drawIconNode(context: CanvasRenderingContext2D, node: TapeIconNode, filled: boolean): void {
   const path = new Path2D()
   context.beginPath()
   if (node.type === "path") path.addPath(new Path2D(node.d))
@@ -33,10 +33,11 @@ function drawIconNode(context: CanvasRenderingContext2D, node: TapeIconNode): vo
   }
   context.save()
   context.globalAlpha = node.opacity ?? 1
-  context.lineWidth = node.strokeWidth ?? 2
+  context.lineWidth = filled ? 1.35 : (node.strokeWidth ?? 2)
   context.lineCap = node.strokeLinecap ?? "round"
   context.lineJoin = node.strokeLinejoin ?? "round"
-  if (node.fill && node.fill !== "none") context.fill(path, node.fillRule ?? "nonzero")
+  const canFill = node.type !== "line" && node.type !== "polyline"
+  if ((filled && canFill) || (node.fill && node.fill !== "none")) context.fill(path, node.fillRule ?? "nonzero")
   if (node.stroke !== "none" && (node.stroke || !node.fill)) context.stroke(path)
   context.restore()
 }
@@ -82,7 +83,7 @@ export function createTapePatternTile(style: CanvasTapeStyle, height: number): H
     context.lineWidth = 2
     context.lineCap = "round"
     context.lineJoin = "round"
-    for (const node of icon.nodes) drawIconNode(context, node)
+    for (const node of icon.nodes) drawIconNode(context, node, style.pattern.style === "filled")
     context.restore()
   }
   tileCache.set(cacheKey, tile)
