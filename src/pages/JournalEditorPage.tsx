@@ -4,13 +4,15 @@ import { Navigate, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { useAppData } from "@/app/AppDataProvider"
+import { useAuth } from "@/app/AuthProvider"
 import { FabricJournalCanvas, type CanvasRenderState, type CanvasSelectionAnchor, type FabricJournalCanvasHandle } from "@/components/memento/FabricJournalCanvas"
 import { StickerImage } from "@/components/memento/StickerImage"
+import { TapePatternPicker } from "@/components/memento/TapePatternPicker"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { appendCanvasHistory, CANVAS_TAPE_COLORS, CANVAS_TEXT_COLORS, CANVAS_TEXT_FONTS, canvasDocumentFromPlacements, canvasTextFontFamily, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, emptyCanvasDocument, moveCanvasHistory } from "@/domain/editor"
-import { isCanvasJournalPage, type CanvasDocument, type CanvasJournalPageRecord, type CanvasObject, type CanvasTextFont } from "@/domain/model"
+import { appendCanvasHistory, CANVAS_TEXT_COLORS, CANVAS_TEXT_FONTS, canvasDocumentFromPlacements, canvasTextFontFamily, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, emptyCanvasDocument, moveCanvasHistory } from "@/domain/editor"
+import { isCanvasJournalPage, type CanvasDocument, type CanvasJournalPageRecord, type CanvasObject, type CanvasTapeStyle, type CanvasTextFont } from "@/domain/model"
 import { shouldApplyRecord } from "@/domain/syncProtocol"
 import { createCanvasWriteQueue, type CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { downloadBlob } from "@/lib/images"
@@ -84,6 +86,7 @@ function drawJournalPaper(
 export function JournalEditorPage() {
   const { journalId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { snapshot, repository, assetUrls } = useAppData()
   const journal = snapshot.journals.find((item) => item.id === journalId)
   const [pageNumber, setPageNumber] = useState(journal?.currentPage ?? 1)
@@ -92,6 +95,8 @@ export function JournalEditorPage() {
   const [selectedTextFont, setSelectedTextFont] = useState<CanvasTextFont | null>(null)
   const [fontPickerOpen, setFontPickerOpen] = useState(false)
   const [tapePickerOpen, setTapePickerOpen] = useState(false)
+  const [tapeStylePickerOpen, setTapeStylePickerOpen] = useState(false)
+  const [selectedTapeStyle, setSelectedTapeStyle] = useState<CanvasTapeStyle | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [selectedAnchor, setSelectedAnchor] = useState<CanvasSelectionAnchor | null>(null)
   const canvasRef = useRef<HTMLElement>(null)
@@ -216,6 +221,8 @@ export function JournalEditorPage() {
     setSelectedTextFont(null)
     setFontPickerOpen(false)
     setTapePickerOpen(false)
+    setTapeStylePickerOpen(false)
+    setSelectedTapeStyle(null)
     setSelectedAnchor(null)
     setPageNumber(next)
     await repository.putJournal({ ...activeJournal, currentPage: next, revision: activeJournal.revision + 1, updatedAt: Date.now() })
@@ -225,6 +232,8 @@ export function JournalEditorPage() {
     setSelectedTextColor(object?.kind === "text" ? object.color ?? DEFAULT_CANVAS_TEXT_COLOR : null)
     setSelectedTextFont(object?.kind === "text" ? object.font ?? DEFAULT_CANVAS_TEXT_FONT : null)
     if (object?.kind !== "text") setFontPickerOpen(false)
+    setSelectedTapeStyle(object?.kind === "tape" ? { color: object.color, pattern: object.pattern } : null)
+    if (object?.kind !== "tape") setTapeStylePickerOpen(false)
   }
 
   async function addPage(): Promise<void> {
@@ -243,6 +252,14 @@ export function JournalEditorPage() {
     })
     setAcknowledgedOperation(null)
     setCanvasRenderState({ pageId: null, loading: true, complete: false, hasErrors: false })
+    setSelectedId(null)
+    setSelectedTextColor(null)
+    setSelectedTextFont(null)
+    setSelectedTapeStyle(null)
+    setFontPickerOpen(false)
+    setTapePickerOpen(false)
+    setTapeStylePickerOpen(false)
+    setSelectedAnchor(null)
     setPageNumber(next)
   }
 
@@ -364,6 +381,17 @@ export function JournalEditorPage() {
                 </PopoverContent>
               </Popover>
             ) : null}
+            {selectedTapeStyle ? (
+              <TapePatternPicker
+                open={tapeStylePickerOpen}
+                onOpenChange={setTapeStylePickerOpen}
+                mode="edit"
+                initialStyle={selectedTapeStyle}
+                accountId={user?.id ?? "local"}
+                trigger={<Button variant="ghost" size="icon" aria-label="Change tape style" title="胶带样式"><PanelTop /></Button>}
+                onConfirm={(style) => fabricRef.current?.setSelectedTapeStyle(style)}
+              />
+            ) : null}
             {!selectedTextColor ? (
               <>
                 <Tooltip>
@@ -401,35 +429,15 @@ export function JournalEditorPage() {
               <TooltipTrigger asChild><Button variant="ghost" size="icon" className="canvas-text-button" aria-label="Add text" disabled={!migrated} onClick={() => fabricRef.current?.addText()}><Type /></Button></TooltipTrigger>
               <TooltipContent side="top" sideOffset={8}>添加文字</TooltipContent>
             </Tooltip>
-            <Popover open={tapePickerOpen} onOpenChange={setTapePickerOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild><Button variant="ghost" size="icon" className="canvas-tape-button" aria-label="Add tape" disabled={!migrated}><PanelTop /></Button></PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={8}>添加胶带</TooltipContent>
-              </Tooltip>
-              <PopoverContent side="top" sideOffset={10} className="canvas-tape-picker" aria-label="Choose tape color">
-                <p>胶带颜色</p>
-                <div role="group" aria-label="Tape color options">
-                  {CANVAS_TAPE_COLORS.map((color) => (
-                    <Button
-                      key={color}
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="canvas-tape-color"
-                      aria-label={`Add tape in ${color}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => {
-                        fabricRef.current?.addTape(color)
-                        setTapePickerOpen(false)
-                      }}
-                    />
-                  ))}
-                </div>
-                <small>拖动两端调节长度</small>
-              </PopoverContent>
-            </Popover>
+            <TapePatternPicker
+              open={tapePickerOpen}
+              onOpenChange={setTapePickerOpen}
+              mode="add"
+              initialStyle={{ color: DEFAULT_CANVAS_TAPE_COLOR }}
+              accountId={user?.id ?? "local"}
+              trigger={<Button variant="ghost" size="icon" className="canvas-tape-button" aria-label="Add tape" disabled={!migrated}><PanelTop /></Button>}
+              onConfirm={(style) => fabricRef.current?.addTape(style)}
+            />
           </div>
         </div>
         <nav className="page-navigator" aria-label="Journal pages">

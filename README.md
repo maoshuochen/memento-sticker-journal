@@ -46,8 +46,8 @@ Memento 是一款“把眼前的小物收进手帐”的移动优先应用：用
 1. **收集**：从相机或相册选 JPEG、PNG、WebP；客户端先压缩，再以 `multipart/form-data` 上传到 `/api/cutout`。
 2. **做成贴纸**：抠图结果先进入“可剥离”预览；用户命名、分组并在 1–10px 范围内调节白色描边后保存。
 3. **浏览与管理**：贴纸按创建时间排列，可搜索、按分组过滤。每次打开或点击重放按钮，贴纸会以重力下坠的方式落到容器底部；动画结束后保留物理落点，不切换成规则网格。
-4. **拼贴**：从编辑器底部贴纸栏加入页面。选中后可以直接拖动；右下角旋转把手支持拖到任意角度，键盘左右方向键可作 1° 微调（`Shift` 为 15°）。工具条提供缩放、前后层级和删除。
-5. **留存与恢复**：页面支持最多 30 步贴纸历史的撤销/重做和 PNG 导出；登录账号会自动同步到云端。
+4. **拼贴**：从编辑器底部贴纸栏加入页面。选中后可以直接拖动；右下角旋转把手支持拖到任意角度，键盘左右方向键可作 1° 微调（`Shift` 为 15°）。胶带支持纯色、单个 Emoji 或预设 Icon 沿长度重复，左右控制点只改变长度；已有胶带可重新选择底色、图案和 Icon 颜色。
+5. **留存与恢复**：页面支持最多 30 步编辑历史的撤销/重做和 PNG 导出；胶带图案进入相同的 IndexedDB、云同步和导出路径。最近使用的胶带图案只保存在当前浏览器的对应账号中。
 
 ### 视觉与动效系统
 
@@ -200,4 +200,4 @@ wrangler.jsonc       Static Assets、限流与 Observability
 
 ## 第三方许可
 
-撕贴纸预览按需加载 [Sticker Forge](https://github.com/CatsJuice/sticker-forge)，采用 MIT 许可；完整许可证随静态资源发布于 `public/vendor/STICKER_FORGE_LICENSE.txt`。PNG 导出使用 Fabric 底层画布与原生 Canvas 合成，不再依赖 `html2canvas`。
+撕贴纸预览按需加载 [Sticker Forge](https://github.com/CatsJuice/sticker-forge)，采用 MIT 许可；完整许可证随静态资源发布于 `public/vendor/STICKER_FORGE_LICENSE.txt`。胶带预设 Icon 使用 [Lucide](https://lucide.dev/) 图形，采用 ISC 许可，许可证随静态资源发布于 `public/vendor/LUCIDE_LICENSE.txt`。PNG 导出使用 Fabric 底层画布与原生 Canvas 合成，不再依赖 `html2canvas`。

@@ -1,11 +1,12 @@
-import { Canvas, Rect, Shadow, Textbox, type FabricObject } from "fabric"
+import { Canvas, Pattern, Rect, Shadow, Textbox, controlsUtils, type FabricObject } from "fabric"
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 
-import type { CanvasDocument, CanvasObject, CanvasStickerObject, CanvasTapeObject, CanvasTextFont, CanvasTextObject, StickerRecord } from "@/domain/model"
+import { canvasTapeStyleSchema, type CanvasDocument, type CanvasObject, type CanvasStickerObject, type CanvasTapeObject, type CanvasTapeStyle, type CanvasTextFont, type CanvasTextObject, type StickerRecord } from "@/domain/model"
 import { canvasTextFontFamily, canvasTextFontLoadDescriptor, DEFAULT_CANVAS_TAPE_COLOR, DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT, nextCanvasZIndex } from "@/domain/editor"
 import { canvasDocumentKey, normalizeCanvasDocument } from "@/domain/canvasDocument"
 import type { CanvasOperationToken } from "@/hooks/useCanvasHistory"
 import { fabricImageFromSource, STICKER_BASE_SIZE } from "@/lib/canvasImages"
+import { createTapePatternTile, tapePatternOffset, tapePatternRepeatCount } from "@/lib/tapePattern"
 
 const TEXT_COLOR = DEFAULT_CANVAS_TEXT_COLOR
 
@@ -24,7 +25,8 @@ export interface CanvasRenderState {
 export interface FabricJournalCanvasHandle {
   isReadyForExport(): boolean;
   addSticker(stickerId: string): void;
-  addTape(color?: string): void;
+  addTape(style?: CanvasTapeStyle): void;
+  setSelectedTapeStyle(style: CanvasTapeStyle): void;
   addText(): void;
   setSelectedTextColor(color: string): void;
   setSelectedTextFont(font: CanvasTextFont): void;
@@ -377,6 +379,22 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
     return textbox
   }, [constrainObject, emitDocument, fitTextWidth])
 
+  const applyTapeStyle = useCallback((tape: Rect, style: CanvasTapeStyle): void => {
+    const tile = createTapePatternTile(style, tape.height ?? 1)
+    if (!tile) {
+      tape.set({ fill: style.color, opacity: .72 })
+      return
+    }
+    tape.set({
+      fill: new Pattern({
+        source: tile,
+        repeat: "repeat",
+        offsetX: tapePatternOffset(tape.getScaledWidth(), tile.width),
+      }),
+      opacity: 1,
+    })
+  }, [])
+
   const makeTapeObject = useCallback((object: CanvasTapeObject, canvas: Canvas): RuntimeObject => {
     const tape = new Rect({
       left: object.x * canvas.width,
@@ -386,7 +404,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       width: object.width * canvas.width,
       height: object.height * canvas.height,
       fill: object.color,
-      opacity: .72,
+      opacity: object.pattern ? 1 : .72,
       rx: 1.5,
       ry: 1.5,
       stroke: "rgba(87, 63, 43, .16)",
@@ -407,10 +425,13 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
     // it anywhere, rotate from Fabric's standard handle, and pull either end
     // to choose its length. Hiding the other controls prevents accidental
     // thickness changes on touch screens.
-    tape.setControlsVisibility({ tl: false, tr: false, bl: false, br: false, mt: false, mb: false, ml: true, mr: true, mtr: true })
+    const resizeControls = controlsUtils.createResizeControls()
+    const defaultControls = controlsUtils.createObjectDefaultControls()
+    tape.controls = { ml: resizeControls.ml, mr: resizeControls.mr, mtr: defaultControls.mtr }
     ;(tape as RuntimeObject).memento = object
+    applyTapeStyle(tape, { color: object.color, pattern: object.pattern })
     return tape
-  }, [])
+  }, [applyTapeStyle])
 
   useEffect(() => {
     const element = canvasElementRef.current
@@ -425,8 +446,16 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       constrainObject(target, canvas)
       callbacksRef.current.onSelectedAnchorChange?.(selectionAnchor(target))
     }
+    const updateTapeResize = (event: { target?: FabricObject }) => {
+      updateTransform(event)
+      const runtime = event.target as RuntimeObject | undefined
+      if (runtime?.memento?.kind === "tape") {
+        applyTapeStyle(event.target as Rect, { color: runtime.memento.color, pattern: runtime.memento.pattern })
+      }
+    }
     canvas.on("object:moving", updateTransform)
     canvas.on("object:scaling", updateTransform)
+    canvas.on("object:resizing", updateTapeResize)
     canvas.on("object:rotating", updateTransform)
     canvas.on("object:modified", () => emitDocument(canvas))
     fabricCanvasRef.current = canvas
@@ -434,7 +463,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       fabricCanvasRef.current = null
       void canvas.dispose()
     }
-  }, [constrainObject, emitDocument, reportSelection, selectionAnchor])
+  }, [applyTapeStyle, constrainObject, emitDocument, reportSelection, selectionAnchor])
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -599,14 +628,16 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
         callbacksRef.current.onRenderStateChange?.({ pageId: requestedPageId, loading: loadingRef.current || pendingImagesRef.current > 0, complete: !loadingRef.current && !pendingImagesRef.current && !loadIssuesRef.current.length, hasErrors: loadIssuesRef.current.length > 0 })
       })
     },
-    addTape(color = DEFAULT_CANVAS_TAPE_COLOR) {
-      if (callbacksRef.current.readOnly || loadingRef.current || !/^#[0-9a-fA-F]{6}$/.test(color)) return
+    addTape(style = { color: DEFAULT_CANVAS_TAPE_COLOR }) {
+      const parsedStyle = canvasTapeStyleSchema.safeParse(style)
+      if (callbacksRef.current.readOnly || loadingRef.current || !parsedStyle.success) return
       const canvas = fabricCanvasRef.current
       if (!canvas?.width || !canvas.height) return
       const object: CanvasTapeObject = {
         id: crypto.randomUUID(),
         kind: "tape",
-        color,
+        color: parsedStyle.data.color,
+        pattern: parsedStyle.data.pattern,
         x: .5,
         y: .5,
         width: .36,
@@ -619,6 +650,19 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       canvas.setActiveObject(tape)
       reportSelection(object.id, tape)
       emitDocument(canvas)
+      canvas.requestRenderAll()
+    },
+    setSelectedTapeStyle(style: CanvasTapeStyle) {
+      if (callbacksRef.current.readOnly) return
+      const parsedStyle = canvasTapeStyleSchema.safeParse(style)
+      const canvas = fabricCanvasRef.current
+      const selected = canvas?.getActiveObject() as RuntimeObject | undefined
+      if (!parsedStyle.success || !canvas || selected?.memento?.kind !== "tape") return
+      selected.memento = { ...selected.memento, ...parsedStyle.data }
+      applyTapeStyle(selected as Rect, parsedStyle.data)
+      selected.setCoords()
+      emitDocument(canvas)
+      reportSelection(selected.memento.id, selected)
       canvas.requestRenderAll()
     },
     addText() {
@@ -716,7 +760,7 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       emitDocument(canvas)
       canvas.requestRenderAll()
     },
-  }), [emitDocument, fitTextWidth, makeMissingObject, makeStickerObject, makeTapeObject, makeTextObject, reportSelection])
+  }), [applyTapeStyle, emitDocument, fitTextWidth, makeMissingObject, makeStickerObject, makeTapeObject, makeTextObject, reportSelection])
 
   return (
     <div
@@ -727,6 +771,8 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       data-canvas-load-error={loadIssues.length ? "true" : "false"}
       data-object-count={document.objects.length}
       data-tape-count={document.objects.filter((object) => object.kind === "tape").length}
+      data-tape-patterns={document.objects.filter((object): object is CanvasTapeObject => object.kind === "tape").map((object) => object.pattern?.kind === "emoji" ? `emoji:${object.pattern.value}` : object.pattern?.kind === "icon" ? `icon:${object.pattern.id}:${object.pattern.color}` : "solid").join(",")}
+      data-tape-repeat-counts={document.objects.filter((object): object is CanvasTapeObject => object.kind === "tape").map((object) => tapePatternRepeatCount(object.width * size.width, object.height * size.height)).join(",")}
       data-text-fonts={document.objects.filter((object) => object.kind === "text").map((object) => object.font ?? DEFAULT_CANVAS_TEXT_FONT).join(",")}
     >
       <canvas ref={canvasElementRef} aria-label="Journal canvas" />

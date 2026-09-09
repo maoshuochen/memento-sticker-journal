@@ -1,4 +1,5 @@
-import type { CanvasDocument, CanvasHistory, CanvasObject, CanvasStickerObject, CanvasTextFont, PageHistory, Placement } from "@/domain/model"
+import type { CanvasDocument, CanvasHistory, CanvasObject, CanvasStickerObject, CanvasTapeStyle, CanvasTextFont, PageHistory, Placement } from "@/domain/model"
+import { CANVAS_TAPE_ICON_COLORS, TAPE_BACKGROUND_COLORS, defaultTapeIconColor } from "@/domain/tapePatterns"
 
 export const LEGACY_CANVAS_WIDTH = 640
 export const LEGACY_CANVAS_HEIGHT = 640
@@ -14,18 +15,25 @@ export const CANVAS_TEXT_COLORS = [
   "#66768a",
 ] as const
 
-// Solid colors only for the first tape pass.  The canvas object keeps the
-// color, so textured tape can later become a rendering upgrade without a data
-// migration.
-export const CANVAS_TAPE_COLORS = [
-  "#e9b982",
-  "#b8d0c0",
-  "#e6b1c0",
-  "#aec6dc",
-  "#d6c58e",
-] as const
+// Keep the original editor exports stable while the catalogue lives beside
+// the persisted tape pattern definitions.  Existing pages and callers can
+// continue importing CANVAS_TAPE_COLORS from this module.
+export const CANVAS_TAPE_COLORS = TAPE_BACKGROUND_COLORS
+export { CANVAS_TAPE_ICON_COLORS, defaultTapeIconColor }
 
 export const DEFAULT_CANVAS_TAPE_COLOR = CANVAS_TAPE_COLORS[0]
+export const DEFAULT_CANVAS_TAPE_ICON_COLOR = defaultTapeIconColor(DEFAULT_CANVAS_TAPE_COLOR)
+
+export function normalizeCanvasTapeStyle(style: CanvasTapeStyle | undefined): CanvasTapeStyle {
+  if (!style) return { color: DEFAULT_CANVAS_TAPE_COLOR }
+  if (style.pattern?.kind === "icon") {
+    return { color: style.color, pattern: { ...style.pattern } }
+  }
+  if (style.pattern?.kind === "emoji") {
+    return { color: style.color, pattern: { ...style.pattern } }
+  }
+  return { color: style.color }
+}
 
 export const CANVAS_TEXT_FONTS = [
   { id: "handwritten", label: "手绘", description: "随手写下", family: '"ZCOOL KuaiLe", "Comic Sans MS", cursive' },

@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasObject } from "@/domain/model"
+import type { CanvasDocument, CanvasObject, CanvasTapeObject } from "@/domain/model"
 import { DEFAULT_CANVAS_TEXT_COLOR, DEFAULT_CANVAS_TEXT_FONT } from "@/domain/editor"
 
 /**
@@ -23,7 +23,7 @@ export function normalizeCanvasDocument(document: CanvasDocument): CanvasDocumen
         }
       }
       if (object.kind === "tape") {
-        return {
+        const normalizedTape: CanvasTapeObject = {
           id: object.id,
           kind: "tape",
           color: object.color,
@@ -34,6 +34,7 @@ export function normalizeCanvasDocument(document: CanvasDocument): CanvasDocumen
           angle: object.angle,
           zIndex: object.zIndex,
         }
+        return object.pattern ? { ...normalizedTape, pattern: structuredClone(object.pattern) } : normalizedTape
       }
       return {
         id: object.id,

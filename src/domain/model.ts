@@ -75,6 +75,49 @@ export const canvasStickerObjectSchema = z.object({
 export const canvasTextFontSchema = z.enum(["handwritten", "yozai", "serif", "sans"]);
 
 /**
+ * Tape icons are deliberately a closed, small catalogue.  Persisting a
+ * stable id instead of an imported component keeps canvas documents portable
+ * and lets the picker and Fabric renderer use the same registry.
+ */
+export const canvasTapeIconIds = [
+  "sparkles", "heart", "star", "sun", "moon", "cloud", "leaf", "flower-2",
+  "apple", "cherry", "carrot", "cake-slice", "coffee", "ice-cream-bowl", "pizza", "popcorn",
+  "plane", "car-front", "bike", "train-front", "map-pin", "suitcase", "camera", "compass",
+  "music", "book-open", "pencil", "scissors", "gift", "balloon", "smile", "cat",
+  "dog", "bird", "fish", "butterfly", "rainbow", "check", "plus", "hash",
+] as const;
+
+export const canvasTapeIconIdSchema = z.enum(canvasTapeIconIds);
+export const canvasTapeColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+function isSingleGrapheme(value: string): boolean {
+  const isEmoji = /^(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u.test(value);
+  if (!isEmoji) return false;
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    return Array.from(segmenter.segment(value)).length === 1;
+  }
+  // Older browsers do not expose Intl.Segmenter.  This fallback still handles
+  // the common emoji variation-selector and ZWJ forms without accepting text.
+  return true;
+}
+
+export const canvasTapeEmojiSchema = z.string()
+  .min(1)
+  .max(32)
+  .refine(isSingleGrapheme, "Tape emoji must contain one grapheme.");
+
+export const canvasTapePatternSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("emoji"), value: canvasTapeEmojiSchema }),
+  z.object({ kind: z.literal("icon"), id: canvasTapeIconIdSchema, color: canvasTapeColorSchema }),
+]);
+
+export const canvasTapeStyleSchema = z.object({
+  color: canvasTapeColorSchema,
+  pattern: canvasTapePatternSchema.optional(),
+});
+
+/**
  * A tape strip has its own normalized geometry rather than borrowing the
  * sticker shape.  Its height is deliberately bounded: users can stretch the
  * strip from either end, but it should continue to read as a piece of tape.
@@ -82,7 +125,8 @@ export const canvasTextFontSchema = z.enum(["handwritten", "yozai", "serif", "sa
 export const canvasTapeObjectSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("tape"),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  color: canvasTapeColorSchema,
+  pattern: canvasTapePatternSchema.optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   width: z.number().min(0.08).max(0.94),
@@ -178,6 +222,9 @@ export type PageHistory = z.infer<typeof pageHistorySchema>;
 export type CanvasStickerObject = z.infer<typeof canvasStickerObjectSchema>;
 export type CanvasTapeObject = z.infer<typeof canvasTapeObjectSchema>;
 export type CanvasTextFont = z.infer<typeof canvasTextFontSchema>;
+export type CanvasTapeIconId = z.infer<typeof canvasTapeIconIdSchema>;
+export type CanvasTapePattern = z.infer<typeof canvasTapePatternSchema>;
+export type CanvasTapeStyle = z.infer<typeof canvasTapeStyleSchema>;
 export type CanvasTextObject = z.infer<typeof canvasTextObjectSchema>;
 export type CanvasObject = z.infer<typeof canvasObjectSchema>;
 export type CanvasDocument = z.infer<typeof canvasDocumentSchema>;
