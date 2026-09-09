@@ -161,6 +161,13 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await expect(page.getByRole('tab', { name: '纯色' })).toHaveAttribute('aria-selected', 'false');
   await expect(page.getByText('Emoji 使用系统原生颜色')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '搜索胶带图案' })).toHaveCount(0);
+  const iconControls = page.locator('.tape-pattern-icon-controls');
+  const iconControlsBox = await iconControls.boundingBox();
+  const selectedColorBox = await iconControls.locator('.tape-pattern-icon-color.is-selected').boundingBox();
+  expect(iconControlsBox).not.toBeNull();
+  expect(selectedColorBox).not.toBeNull();
+  expect(selectedColorBox.y - iconControlsBox.y).toBeGreaterThanOrEqual(3);
+  expect(iconControlsBox.y + iconControlsBox.height - selectedColorBox.y - selectedColorBox.height).toBeGreaterThanOrEqual(3);
   await page.getByRole('button', { name: '面形' }).click();
   await page.getByRole('option', { name: '星星' }).click();
   await page.getByRole('button', { name: '图标颜色 #607f99' }).click();

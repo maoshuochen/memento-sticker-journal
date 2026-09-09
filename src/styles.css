@@ -433,7 +433,8 @@
 .tape-pattern-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 12px; background: oklch(.91 .018 78 / .72); }
 .tape-pattern-tabs button { min-height: 32px; border: 0; border-radius: 9px; background: transparent; color: var(--muted-ink); font-size: 12px; cursor: pointer; }
 .tape-pattern-tabs button.is-selected { background: oklch(1 0 0 / .82); color: var(--foreground); box-shadow: 0 1px 4px oklch(.3 .02 50 / .12); }
-.tape-pattern-icon-controls { display: flex; width: 100%; min-width: 0; max-width: 100%; align-items: center; justify-content: space-between; gap: 10px; overflow: hidden; }
+.tape-pattern-icon-controls { display: flex; width: 100%; min-width: 0; max-width: 100%; align-items: center; justify-content: space-between; gap: 10px; padding-block: 3px; }
+.tape-pattern-icon-controls > * { min-width: 0; }
 .tape-pattern-icon-styles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; padding: 2px; border-radius: 9px; background: oklch(.91 .018 78 / .72); }
 .tape-pattern-icon-styles button { min-height: 25px; padding: 3px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted-ink); font-size: 10px; }
 .tape-pattern-icon-styles button.is-selected { background: oklch(1 0 0 / .84); color: var(--foreground); box-shadow: 0 1px 3px oklch(.3 .02 50 / .1); }
