@@ -3,8 +3,16 @@ import { TAPE_ICON_BY_ID, type TapeIconNode } from "@/domain/tapePatterns"
 
 export const TAPE_PATTERN_GLYPH_RATIO = 0.62
 export const TAPE_PATTERN_CELL_RATIO = 1.35
+export const TAPE_PATTERN_MAX_PIXEL_RATIO = 3
 
-const tileCache = new Map<string, HTMLCanvasElement>()
+export interface TapePatternTile {
+  source: HTMLCanvasElement;
+  width: number;
+  height: number;
+  pixelRatio: number;
+}
+
+const tileCache = new Map<string, TapePatternTile>()
 
 function rgba(hex: string, alpha: number): string {
   const value = Number.parseInt(hex.slice(1), 16)
@@ -53,30 +61,38 @@ export function tapePatternOffset(width: number, tileWidth: number): number {
   return remainder === 0 ? 0 : -(tileWidth - remainder) / 2
 }
 
-export function createTapePatternTile(style: CanvasTapeStyle, height: number): HTMLCanvasElement | null {
+export function tapePatternPixelRatio(devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio): number {
+  const ratio = Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1
+  return Math.min(TAPE_PATTERN_MAX_PIXEL_RATIO, Math.max(2, ratio))
+}
+
+export function createTapePatternTile(style: CanvasTapeStyle, height: number): TapePatternTile | null {
   if (!style.pattern || typeof document === "undefined") return null
   const tileHeight = Math.max(16, Math.round(height))
-  const cacheKey = `${style.color}:${JSON.stringify(style.pattern)}:${tileHeight}`
+  const tileWidth = Math.max(tileHeight, Math.round(tileHeight * TAPE_PATTERN_CELL_RATIO))
+  const pixelRatio = tapePatternPixelRatio()
+  const cacheKey = `${style.color}:${JSON.stringify(style.pattern)}:${tileWidth}:${tileHeight}:${pixelRatio}`
   const cached = tileCache.get(cacheKey)
   if (cached) return cached
   const tile = document.createElement("canvas")
-  tile.height = tileHeight
-  tile.width = Math.max(tileHeight, Math.round(tileHeight * TAPE_PATTERN_CELL_RATIO))
+  tile.height = Math.round(tileHeight * pixelRatio)
+  tile.width = Math.round(tileWidth * pixelRatio)
   const context = tile.getContext("2d")
   if (!context) return null
+  context.scale(pixelRatio, pixelRatio)
   context.fillStyle = rgba(style.color, 0.72)
-  context.fillRect(0, 0, tile.width, tile.height)
-  const glyphSize = tile.height * TAPE_PATTERN_GLYPH_RATIO
+  context.fillRect(0, 0, tileWidth, tileHeight)
+  const glyphSize = tileHeight * TAPE_PATTERN_GLYPH_RATIO
   if (style.pattern.kind === "emoji") {
     context.font = `${glyphSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
     context.textAlign = "center"
     context.textBaseline = "middle"
-    context.fillText(style.pattern.value, tile.width / 2, tile.height / 2 + tile.height * 0.025)
+    context.fillText(style.pattern.value, tileWidth / 2, tileHeight / 2 + tileHeight * 0.025)
   } else {
     const icon = TAPE_ICON_BY_ID.get(style.pattern.id)
     if (!icon) return null
     context.save()
-    context.translate((tile.width - glyphSize) / 2, (tile.height - glyphSize) / 2)
+    context.translate((tileWidth - glyphSize) / 2, (tileHeight - glyphSize) / 2)
     context.scale(glyphSize / 24, glyphSize / 24)
     context.strokeStyle = style.pattern.color
     context.fillStyle = style.pattern.color
@@ -86,6 +102,7 @@ export function createTapePatternTile(style: CanvasTapeStyle, height: number): H
     for (const node of icon.nodes) drawIconNode(context, node, style.pattern.style === "filled")
     context.restore()
   }
-  tileCache.set(cacheKey, tile)
-  return tile
+  const result = { source: tile, width: tileWidth, height: tileHeight, pixelRatio }
+  tileCache.set(cacheKey, result)
+  return result
 }

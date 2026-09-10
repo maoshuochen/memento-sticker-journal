@@ -388,12 +388,19 @@ export const FabricJournalCanvas = forwardRef<FabricJournalCanvasHandle, FabricJ
       tape.set({ fill: style.color, opacity: .72 })
       return
     }
+    const pattern = new Pattern({
+      source: tile.source,
+      repeat: "repeat",
+      offsetX: tapePatternOffset(tape.getScaledWidth(), tile.width),
+    })
+    const toLive = pattern.toLive.bind(pattern)
+    pattern.toLive = (context) => {
+      const livePattern = toLive(context)
+      livePattern?.setTransform({ a: 1 / tile.pixelRatio, d: 1 / tile.pixelRatio })
+      return livePattern
+    }
     tape.set({
-      fill: new Pattern({
-        source: tile,
-        repeat: "repeat",
-        offsetX: tapePatternOffset(tape.getScaledWidth(), tile.width),
-      }),
+      fill: pattern,
       opacity: 1,
     })
   }, [])

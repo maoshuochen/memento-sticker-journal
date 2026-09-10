@@ -116,6 +116,7 @@ test('patterned tape can be added, resized, restyled, restored, and undone', asy
   await page.getByRole('button', { name: 'Add tape' }).click();
   const picker = isMobile ? page.getByRole('dialog', { name: '定制胶带' }) : page.locator('.tape-pattern-popover');
   await expect(picker).toBeVisible();
+  if (!isMobile) await expect(picker).toHaveCSS('transform', 'none');
   await expect(page.getByText('选一个重复图案，让手帐更有节奏。')).toHaveCount(0);
   const previewWidth = (await page.getByLabel('Tape preview').boundingBox()).width;
   await page.getByRole('tab', { name: 'Icons' }).click();
